@@ -13,6 +13,7 @@ No hardcoded screen coordinates. Nothing is assumed about window size, theme or 
 Design rationale, grounding strategy and tradeoffs: **[DESIGN.md](DESIGN.md)**.
 A guided tour that assumes no prior context: **[docs/WALKTHROUGH.md](docs/WALKTHROUGH.md)**.
 What the application turned out to be, found by running it: **[docs/FINDINGS.md](docs/FINDINGS.md)**.
+Which reader reads the grids, and the measurement behind it: **[docs/BENCHMARK.md](docs/BENCHMARK.md)**.
 
 ---
 
@@ -50,6 +51,8 @@ Confirmed in the HSQLDB rather than only on screen -- `FKT_DOCUMENT` holds
 | what was read out of the image, and what will be done with it | [`input/order.extracted.json`](input/order.extracted.json) |
 | ten annotated screenshots, callouts mapped to spec steps | [`docs/screenshots/`](docs/screenshots/) |
 | the run as 35 annotated frames | [`docs/film/`](docs/film/) |
+| the same run as a 56-second clip | [`docs/recording.mp4`](docs/recording.mp4) |
+| which reader reads the grids, measured | [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | what the application turned out to be | [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 
 `Data > Documents` at the end of a run

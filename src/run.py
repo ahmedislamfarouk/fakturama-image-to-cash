@@ -152,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--extract-only", action="store_true",
                     help="extract and validate, then stop -- runs on any platform")
     ap.add_argument("--fakturama", default=os.environ.get("FAKTURAMA_EXE", DEFAULT_FAKTURAMA))
+    ap.add_argument("--record", action="store_true",
+                    help="capture the screen continuously; tools/video.py builds the clip")
     ap.add_argument("--film", action="store_true",
                     help="save a numbered frame after every click, for tools/storyboard.py")
     ap.add_argument("--attach", action="store_true",
@@ -193,7 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     from src import flow  # imported late so --extract-only works without pywinauto
 
     d = Driver(app_path=args.fakturama, vision_tiebreak=not args.no_vision_tiebreak,
-               film=args.film)
+               film=args.film or args.record, record=args.record)
+    d.start_recording()
     try:
         print("[2/6] " + ("attaching to" if args.attach else "launching") + " Fakturama")
         d.connect() if args.attach else d.start()
@@ -233,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         ])
         raise
     finally:
+        d.stop_recording()
         _shot(d, "final-state")
 
     verdict(True, [

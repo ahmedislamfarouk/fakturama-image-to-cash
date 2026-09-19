@@ -372,7 +372,9 @@ class Driver:
     _log: list[str] = field(default_factory=list)
     _t0: float = field(default_factory=time.monotonic)   # for the elapsed column
     film: bool = False            # capture a frame after every click (--film)
+    record: bool = False          # capture continuously, for a real video (--record)
     _frame: int = 0
+    _rec_stop: object = None
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -726,6 +728,49 @@ class Driver:
                 self.scope_main()
         raise TimeoutError(f"{click_logical}: clicked {tries}x, {expect_logical} never appeared"
                            + (f" (last: {last})" if last else ""))
+
+    def start_recording(self, fps: float = 1.0) -> None:
+        """Grab the screen on a background thread for the whole run.
+
+        In-process on purpose: the click log and these frames then share one
+        clock, so a click at t=82.4s can be drawn on the frame captured at
+        t=82.4s. Capturing from the host instead would mean reconciling two
+        clocks across a VM boundary for no benefit.
+
+        One frame a second. Fakturama spends most of a run not visibly
+        changing, and a 6-minute capture at 1fps is ~350 frames, which is a
+        14-second clip at 25fps.
+        """
+        if not self.record:
+            return
+        import threading
+        out = self.shots.parent / "record"
+        out.mkdir(parents=True, exist_ok=True)
+        for old in out.glob("*.png"):
+            old.unlink()
+        self._rec_stop = threading.Event()
+
+        def loop():
+            from PIL import ImageGrab
+            n = 0
+            while not self._rec_stop.is_set():
+                t = time.monotonic() - self._t0
+                try:
+                    im = ImageGrab.grab()
+                    im.thumbnail((1600, 1600))
+                    im.convert("RGB").quantize(colors=128).save(
+                        out / f"{n:05d}-{t:08.2f}.png", optimize=True)
+                    n += 1
+                except Exception:
+                    pass
+                self._rec_stop.wait(1.0 / fps)
+
+        threading.Thread(target=loop, daemon=True).start()
+        self.note(f"recording to {out} at {fps:g} fps")
+
+    def stop_recording(self) -> None:
+        if self._rec_stop is not None:
+            self._rec_stop.set()
 
     def snap(self, label: str, el=None) -> None:
         """One numbered frame, for the film. Off unless --film.

@@ -70,6 +70,24 @@ knows.
 `storyboard-1..3.png` are the same frames as contact sheets, for reading the shape of
 the run in one go.
 
+`docs/recording.mp4` is the task's "short recording", and it is a real capture, not
+these frames assembled: `--record` grabs the screen once a second on a thread inside
+the run. 260 frames of a 315-second run, played at 12fps, so 22 seconds -- **15x real time**, which every frame states in its corner so nobody mistakes the clip's length for the run's.
+
+The reason it is watchable is the marker. UI automation has no cursor travel to follow
+-- controls simply change -- so a plain capture leaves you unable to tell what was
+pressed or when. Because the recorder runs *inside* the process, its frames and the
+click log share one clock, so a click logged at t=32.0s is drawn on the frame captured
+at t=32.7s, as a red ring closing onto the exact control, held two seconds, with the
+step number and control name underneath.
+
+```
+python -m src.run input/order.png --record
+python3 tools/video.py
+```
+
+The raw capture frames are not committed (260 of them, 27MB). The clip is.
+
 ```
 python -m src.run input/order.png --film   # frames + frames.json
 python3 tools/film.py                      # annotate them in place

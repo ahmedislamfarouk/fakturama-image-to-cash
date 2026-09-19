@@ -108,9 +108,18 @@ which tool is correct.
 returning a bag of words whose geometry I then have to rebuild. The label→value spatial
 relationship is exactly what flat OCR discards and exactly what this document is made of.
 
-**Tesseract is the fallback, not the primary.** For a genuinely scanned or photographed input I
-would add deskew + a Tesseract TSV pass (which keeps per-word bounding boxes) and reconcile the
-two readings. For this input that is work with no payoff.
+**Local OCR is the fallback, and it earns its place twice.** It is the last tier of the
+provider chain, so a run survives every API being rate-limited or absent -- no account,
+no key, no network. It also does a job the model turned out to be bad at: measuring
+*where* the columns and rows physically are. See §5 and `docs/FINDINGS.md`.
+
+The measurement is in [`docs/BENCHMARK.md`](docs/BENCHMARK.md). The implementation is
+`rapidocr-onnxruntime`, not Tesseract. Tesseract was the obvious
+first choice on paper and is not what shipped: rapidocr installs as a single pip
+package with no system binary, which matters when the target is a Windows VM a reviewer
+has to reproduce. For a genuinely scanned or photographed input -- skewed, uneven
+lighting -- a deskew pass reconciled against a second engine would be worth adding. For
+a crisp 1:1 screenshot it is work with no payoff.
 
 **Trust nothing; validate arithmetically.** The document is self-checking, which means extraction
 correctness is *decidable without a human*:
@@ -184,7 +193,7 @@ the Order itself.
 |---|---|---|
 | UIA first, vision only as tiebreak | Fast, deterministic, no per-step API cost | Requires Windows; SWT's thin `AutomationId` coverage forces T2 |
 | Anchor-relative over coordinates | Survives resize, DPI and theme changes | One indirection; breaks if the widget hierarchy is restructured |
-| LLM vision over Tesseract | Table structure and label→value pairing for free | Non-deterministic output, mitigated by the arithmetic gate |
+| LLM vision over OCR alone | Table structure and label→value pairing for free | Non-deterministic output, mitigated by the arithmetic gate and by letting OCR own geometry |
 | Arithmetic self-check over dual-OCR | Decidable correctness, zero extra dependencies | Blind to errors that preserve the identities |
 | Selector dict | Locale/version changes are data edits | Slight indirection when reading the flow |
 | Halt on ambiguity | No silently wrong financial records | The interesting cases need a human |
