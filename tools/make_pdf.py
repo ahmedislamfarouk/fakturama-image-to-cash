@@ -112,14 +112,18 @@ def main() -> None:
         # A one-pager is a different document, not a shrunken one: it loses the
         # rules and the generous section spacing that help a four-page read.
         css += """
-        @page { margin: 13mm 14mm 11mm 14mm; }
-        html { font-size: 9.0pt; }
-        h2 { font-size: 10.6pt; margin: 3.6mm 0 1.4mm; border-bottom: none; }
-        p { margin: 0 0 1.7mm; }
-        table { margin: 1.6mm 0 2.4mm; }
-        td, th { padding: 0.85mm 2.2mm 0.85mm 0; }
-        ul { margin: 1.4mm 0; padding-left: 4mm; }
-        li { margin: 0 0 1mm; }
+        @page { margin: 11mm 12mm 9mm 12mm; }
+        html { font-size: 8.6pt; }
+        body { line-height: 1.3; }
+        h1 { font-size: 15pt; margin: 0 0 1mm; }
+        h1 + p { margin: 0 0 2.5mm; font-size: 8.4pt; }
+        h2 { font-size: 10pt; margin: 3mm 0 1.1mm; border-bottom: none; }
+        p { margin: 0 0 1.5mm; }
+        table { margin: 1.2mm 0 2mm; font-size: 7.8pt; }
+        td, th { padding: 0.7mm 2mm 0.7mm 0; }
+        th { font-size: 7.4pt; }
+        ul { margin: 1.2mm 0; padding-left: 4mm; }
+        li { margin: 0 0 0.8mm; }
         """
     HTML(string=html, base_url=str(SRC.parent.resolve())).write_pdf(
         DST, stylesheets=[CSS(string=css)]
