@@ -727,12 +727,14 @@ class Driver:
         raise TimeoutError(f"{click_logical}: clicked {tries}x, {expect_logical} never appeared"
                            + (f" (last: {last})" if last else ""))
 
-    def snap(self, label: str) -> None:
-        """One numbered frame, for the storyboard. Off unless --film.
+    def snap(self, label: str, el=None) -> None:
+        """One numbered frame, for the film. Off unless --film.
 
         Screenshots taken at a halt show where it stopped; these show what it did.
-        Run with --film and tools/storyboard.py lays them out in order, which is
-        the closest thing to watching the automation without watching it.
+
+        The element's rectangle is recorded alongside the frame, because a frame
+        of a thousand-control window does not say which control was clicked --
+        and the driver is the only thing that knows. tools/film.py draws it.
         """
         if not self.film:
             return
@@ -742,7 +744,21 @@ class Driver:
             d.mkdir(parents=True, exist_ok=True)
             from PIL import ImageGrab
             safe = "".join(c if c.isalnum() or c in "-_." else "-" for c in label)[:48]
-            ImageGrab.grab().save(d / f"{self._frame:03d}-{safe}.png")
+            name = f"{self._frame:03d}-{safe}.png"
+            ImageGrab.grab().save(d / name)
+
+            rect = None
+            try:
+                r = el.element_info.rectangle
+                rect = [r.left, r.top, r.right, r.bottom]
+            except Exception:
+                pass
+            import json
+            man = d / "frames.json"
+            frames = json.loads(man.read_text()) if man.exists() else []
+            frames.append({"n": self._frame, "file": name, "label": label,
+                           "rect": rect, "t": round(time.monotonic() - self._t0, 1)})
+            man.write_text(json.dumps(frames, indent=1))
         except Exception:
             pass
 
@@ -762,7 +778,7 @@ class Driver:
         except Exception:
             el.invoke()          # fall back to the UIA Invoke pattern
         self.note(f"click {logical}")
-        self.snap(f"click-{logical}")
+        self.snap(f"click-{logical}", el)
         return el
 
     def _focus_field(self, el) -> None:

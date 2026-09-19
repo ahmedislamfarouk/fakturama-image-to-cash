@@ -106,7 +106,10 @@ def providers() -> list[dict]:
     out = []
     first_models = [os.environ.get("LLM_MODEL", "gpt-4o-mini"), *_split(os.environ.get("LLM_FALLBACK_MODELS", ""))]
     key = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if key:
+    # The same placeholder guard the numbered groups get. Without it, a checkout
+    # that copied .env.example and filled in nothing spends a request, a timeout
+    # and a confusing 401 before reaching the local OCR that would have worked.
+    if key and "REPLACE" not in key.upper():
         out.append({
             "base": os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             "key": key,
@@ -118,7 +121,7 @@ def providers() -> list[dict]:
         k = os.environ.get(f"LLM_API_KEY_{n}")
         if not (base and k):
             break
-        if "REPLACE" not in k.upper():   # skip unfilled placeholder slots
+        if "REPLACE" not in k.upper():   # same guard as the first group
             out.append({
                 "base": base.rstrip("/"),
                 "key": k,

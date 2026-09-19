@@ -1,261 +1,270 @@
-=== reset 2026-09-19T02:39:06+03:00 ===
-no Information dialog found
-  . click toolbar.order
-no error dialog
-ORDER EDITOR OPENED OK
-=== run 2026-09-19T02:39:59+03:00 ===
-[1/6] extracting input\order.png (cached)
+Clean-database end-to-end run. Fakturama 2.2.0 on a Windows 11 guest;
+the workspace and %USERPROFILE%\.fakturama2 were both deleted beforehand,
+so every master record below was created by this run.
+
+[1/6] extracting input\order.png
       WEB-2026-0714-A17 | Northstar Office GmbH | 2 items | 570.00/108.30/678.30 | paid=True
       - CHR-ERG-01   x2 @ 250.00 -10% -> 450.00  (master gross 297.50, VAT 19%)
       - MAT-DESK-02  x3 @ 40.00 -0% -> 120.00  (master gross 47.60, VAT 19%)
       note: delivery address differs from billing -- 2.8 shortcut does not apply
-[2/6] attaching to Fakturama
-  . scope -> top-level 'Fakturama - C:\\Users\\ahmed\\Fakturama2'
-  . shell maximized
+      wrote input\order.extracted.json -- raw fields, derived values and the arithmetic check
+[2/6] launching Fakturama
+C:\Program Files\Python312\Lib\site-packages\pywinauto\application.py:1076: RuntimeWarning: Application is not loaded correctly (WaitForInputIdle failed)
+  warnings.warn('Application is not loaded correctly (WaitForInputIdle failed)', RuntimeWarning)
+    30.6s . scope -> top-level 'Fakturama - C:\\Users\\ahmed\\Fakturama2'
+    30.6s . shell maximized
 [3/6] stage 1-2: Order open, Debtor resolved
-  . click toolbar.order
-  . ok: order.custref to exist and settle
-  . WARNING order.date: wrote '2026-07-14' but field reads 'Jul 14, 2026'
-  . set order.date = '2026-07-14'
-  . set order.custref = 'WEB-2026-0714-A17'
-  . select order.pricemode -> 'Net'
-  . select order.vat_with -> 'With VAT'
-  . ok: order.custref == 'WEB-2026-0714-A17'
-  . stage 1 ok -- Order open, Cust.Ref. WEB-2026-0714-A17, date 2026-07-14
-  . scope -> main shell
+    31.7s . click toolbar.order
+    34.3s . ok: order.custref to exist and settle
+    36.2s . set order.date = 2026-07-14 (field reads 'Jul 14, 2026')
+    37.5s . set order.custref = 'WEB-2026-0714-A17'
+    39.9s . select order.pricemode -> 'Net'
+    42.3s . select order.vat_with -> 'With VAT'
+    43.1s . ok: order.custref == 'WEB-2026-0714-A17'
+    43.9s . stage 1 ok -- Order open, Cust.Ref. WEB-2026-0714-A17, date 2026-07-14
+    43.9s . scope -> main shell
+    47.3s . click address_picker.open
+    48.5s . scope -> child window 'Select the address'
+    50.4s . scope -> child window 'Select the address'
+    51.0s . set address_dlg.search = 'Northstar Office GmbH'
+    55.8s . ok: address_dlg.list pixels to settle
+    59.2s . grid: 0 row(s) via vision, columns ['No.', 'First Name', 'Name', 'Company', 'ZIP', 'City', 'address type', 'addit']
+    59.2s . debtor: no exact match for 'Northstar Office GmbH' among 0 row(s)
+    59.2s .     required : ['Northstar Office GmbH', 'Marta', 'Klein', '10117', 'Berlin']
+    59.5s . click address_dlg.cancel
+    59.7s . scope -> main shell
+    60.6s . click menu.payments
+    62.1s . list view scope via payment.add
+    63.4s . set list.search = 'Bank Transfer'
+    66.2s . ok: address_dlg.list pixels to settle
+    69.0s . grid rows measured by OCR at []%
+    69.0s . grid: 0 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Discount', 'Disc. Days', 'Net Days']
+    70.1s . click payment.add
+    71.4s . set payment.name = 'Bank Transfer'
+    72.5s . set payment.description = 'Bank Transfer'
+    73.9s . select payment.code -> 'Credit transfer ' (padded text, clicked)
+    75.1s . note payment.cash_discount: wrote '0', field renders it as '0%'
+    75.1s . set payment.cash_discount = '0'
+    76.0s . set payment.discount_days = '0'
+    77.0s . set payment.net_days = '0'
+    77.9s . click order.save
+    78.1s . payment method created: Bank Transfer -> Credit transfer
+    78.1s . scope -> main shell
+    81.2s . click new.contact
+    83.4s . ok: debtor.company to exist and settle
+    84.7s . set debtor.company = 'Northstar Office GmbH'
+    86.1s . set debtor.firstname = 'Marta'
+    87.5s . set debtor.lastname = 'Klein'
 C:\Program Files\Python312\Lib\site-packages\pywinauto\controls\uiawrapper.py:415: RuntimeWarning: The window has not been focused due to COMError: (-2147352573, 'Member not found.', (None, None, None, 0, None))
   warnings.warn('The window has not been focused due to ' \
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click address_picker.open
-  . scope -> child window 'Select the address'
-  . scope -> child window 'Select the address'
-  . set address_dlg.search = 'Northstar Office GmbH'
-  . ok: address_dlg.list pixels to settle
-  . grid: 0 row(s) via vision, columns ['No.', 'First Name', 'Name', 'Company', 'ZIP', 'City', 'address type', 'addit']
-  . debtor: no exact match for 'Northstar Office GmbH' among 0 row(s)
-  .     required : ['Northstar Office GmbH', 'Marta', 'Klein', '10117', 'Berlin']
-  . click address_dlg.cancel
-  . scope -> main shell
-  . click menu.payments
-  . list view scope via payment.add
-  . set list.search = 'Bank Transfer'
-  . ok: address_dlg.list pixels to settle
-  . grid: 0 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Discount', 'Disc. Days', 'Net Days']
-  . click payment.add
-  . set payment.name = 'Bank Transfer'
-  . set payment.description = 'Bank Transfer'
-  . select payment.code -> 'Credit transfer ' (padded text)
-  . WARNING payment.cash_discount: wrote '0' but field reads '0%'
-  . set payment.cash_discount = '0'
-  . set payment.discount_days = '0'
-  . set payment.net_days = '0'
-  . click order.save
-  . payment method created: Bank Transfer -> Credit transfer
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click new.contact
-  . ok: debtor.company to exist and settle
-  . set debtor.company = 'Northstar Office GmbH'
-  . set debtor.firstname = 'Marta'
-  . set debtor.lastname = 'Klein'
-  . click debtor.tab_addresses
-  . ok: debtor.tab_addresses to show debtor.street
-  . set debtor.street = 'Friedrichstrasse 88'
-  . set debtor.zip = '10117'
-  . set debtor.city = 'Berlin'
-  . set debtor.country = 'Germany' (combo select)
-  . set debtor.email = 'marta.klein@example.test'
-  . set debtor.phone = '+49 30 5550 1420'
-  . 2.8: delivery differs from billing -- Delivery role NOT assigned to Main address
-  . set debtor.addrtype = 'Invoice address'
-  . click debtor.tab_misc
-  . ok: debtor.tab_misc to show debtor.alias
-  . set debtor.alias = 'NORTHSTAR-BERLIN'
-  . WARNING debtor.discount: wrote '0' but field reads '0%'
-  . set debtor.discount = '0'
-  . select debtor.netgross -> 'Net'
-  . select debtor.payment -> 'Bank Transfer'
-  . click order.save
-  . Debtor created: Northstar Office GmbH
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click address_picker.open
-  . scope -> child window 'Select the address'
-  . scope -> child window 'Select the address'
-  . set address_dlg.search = 'Northstar Office GmbH'
-  . ok: address_dlg.list pixels to settle
-  . grid: 1 row(s) via vision, columns ['No.', 'First Name', 'Name', 'Company', 'ZIP', 'City', 'address type', 'addit']
-  . clicked grid row 0 at 37.0% of the grid
-  . click address_dlg.ok
-  . debtor: selected exact match for 'Northstar Office GmbH'
-  . scope -> main shell
-  . GAP 2.4: Order shows no invoice address -- the Debtor's address has no role, because the 'address type' control cannot be set through UIA (see _confirm_addresses docstring). Continuing.
+    88.5s . click debtor.tab_addresses
+    89.4s . ok: debtor.tab_addresses to show debtor.street
+    90.7s . set debtor.street = 'Friedrichstrasse 88'
+    91.9s . set debtor.zip = '10117'
+    93.2s . set debtor.city = 'Berlin'
+    95.8s . set debtor.country = 'Germany' (combo select)
+    97.0s . set debtor.email = 'marta.klein@example.test'
+    98.2s . set debtor.phone = '+49 30 5550 1420'
+    98.2s . 2.8: delivery differs from billing -- Delivery role NOT assigned to Main address
+   105.0s . 2.8: panel offers ['Invoice address', 'Delivery address']
+   105.9s . 2.8: 'Invoice address' set; field reads 'Invoice address'
+   107.6s . click debtor.add_address
+   110.4s . set debtor.street = 'Beusselstrasse 44'
+   111.6s . set debtor.zip = '10553'
+   112.8s . set debtor.city = 'Berlin'
+   115.4s . set debtor.country = 'Germany' (combo select)
+   116.9s . set debtor.addl_name = 'Northstar Office Warehouse'
+   122.8s . 2.8: panel offers ['Invoice address']
+   122.8s . 2.8: 'Delivery address' not read by OCR; reaching it by position
+   123.9s . 2.8: 'Delivery address' set; field reads 'Delivery address'
+   124.5s . 2.8 ok: second address created for Beusselstrasse 44, 10553 Berlin with the Delivery role
+   125.5s . click debtor.tab_misc
+   126.2s . ok: debtor.tab_misc to show debtor.alias
+   127.4s . set debtor.alias = 'NORTHSTAR-BERLIN'
+   128.4s . note debtor.discount: wrote '0', field renders it as '0%'
+   128.4s . set debtor.discount = '0'
+   130.5s . select debtor.netgross -> 'Net'
+   132.6s . select debtor.payment -> 'Bank Transfer'
+   133.6s . click order.save
+   133.8s . Debtor created: Northstar Office GmbH
+   133.8s . scope -> main shell
+   137.0s . click address_picker.open
+   138.3s . scope -> child window 'Select the address'
+   140.1s . scope -> child window 'Select the address'
+   140.7s . set address_dlg.search = 'Northstar Office GmbH'
+   145.5s . ok: address_dlg.list pixels to settle
+   148.0s . grid rows measured by OCR at [7.0]%
+   148.0s . grid: 1 row(s) via vision, columns ['', 'No.', 'First Name', 'Name', 'Company', 'ZIP', 'City', 'address type', 'addit']
+   148.9s . clicked grid row 0 at 7.0% of the grid
+   149.5s . click address_dlg.ok
+   149.9s . debtor: selected exact match for 'Northstar Office GmbH'
+   149.9s . scope -> main shell
+   150.7s . 2.4: invoice address matches the source
+   150.7s . 2.8: delivery differs from billing; a second address carries it
 [4/6] stage 3: products
-  . -- item 1/2: CHR-ERG-01
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click product_picker.open
-  . scope -> child window 'Select a product'
-  . scope -> child window 'Select a product'
-  . set product_dlg.search = 'CHR-ERG-01'
-  . ok: address_dlg.list pixels to settle
-  . grid: 14 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT', '']
-  . product:CHR-ERG-01: no exact match for 'CHR-ERG-01' among 14 row(s)
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     required : ['CHR-ERG-01']
-  . click product_dlg.cancel
-  . scope -> main shell
-  . click menu.vats
-  . list view scope via vat.add
-  . set list.search = 'VAT 19%'
-  . ok: address_dlg.list pixels to settle
-  . grid: 0 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Value']
-  . click vat.add
-  . set vat.name = 'VAT 19%'
-  . set vat.description = 'VAT 19%'
-  . select vat.code -> 'S (Standard rate)'
-  . WARNING vat.value: wrote '19' but field reads '19%'
-  . set vat.value = '19'
-  . click order.save
-  . VAT created: VAT 19% with S (Standard rate)
-  . click new.product
-  . ok: product.itemno to exist and settle
-  . editor scope via product.itemno
-  . set product.itemno = 'CHR-ERG-01'
-  . set product.name = 'Ergonomic Desk Chair'
-  . set product.description = 'Ergonomic Desk Chair'
-  . set product.price_gross = '297.50'
-  . set product.cost_price = '0.00'
-  . select product.vat -> 'VAT 19%'
-  . set product.stock = '0.00'
-  . click order.save
-  . Product created: CHR-ERG-01 @ 297.50 gross
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click product_picker.open
-  . scope -> child window 'Select a product'
-  . scope -> child window 'Select a product'
-  . set product_dlg.search = 'CHR-ERG-01'
-  . ok: address_dlg.list pixels to settle
-  . grid: 1 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT']
-  . clicked grid row 0 at 67.0% of the grid
-  . click product_dlg.ok
-  . product:CHR-ERG-01: selected exact match for 'CHR-ERG-01'
-  . scope -> main shell
-  . grid: 1 row(s) via vision, columns ['Pos.', 'Qty.', 'Item No.', 'Picture', 'Name', 'Description', 'VAT', 'U.Price', 'Discount', 'Price']
-  . items: Qty. row 0 = 2 (cell 4.8%, 9.6%)
-  . items: U.Price row 0 = '250.00' (cell 34.7%, 9.4%)
-  . items: Discount row 0 = '10' (cell 39.7%, 9.6%)
-  . 3.16 ok: CHR-ERG-01 line price 450.00
-  . -- item 2/2: MAT-DESK-02
-  . scope -> main shell
-C:\Program Files\Python312\Lib\site-packages\pywinauto\controls\uiawrapper.py:415: RuntimeWarning: The window has not been focused due to COMError: (-2147352573, 'Member not found.', (None, None, None, 0, None))
-  warnings.warn('The window has not been focused due to ' \
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click product_picker.open
-  . scope -> child window 'Select a product'
-  . scope -> child window 'Select a product'
-  . set product_dlg.search = 'MAT-DESK-02'
-  . ok: address_dlg.list pixels to settle
-  . grid: 14 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT', '']
-  . product:MAT-DESK-02: no exact match for 'MAT-DESK-02' among 14 row(s)
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     candidate: ['', '', '', '', '', '', '']
-  .     required : ['MAT-DESK-02']
-  . click product_dlg.cancel
-  . scope -> main shell
-  . click menu.vats
-  . list view scope via vat.add
-  . WARNING list.search: wrote 'VAT 19%' but field reads ''
-  . set list.search = 'VAT 19%'
-  . ok: address_dlg.list pixels to settle
-  . grid: 1 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Value']
-  . 'VAT 19%' was created by this run with S (Standard rate)
-  . VAT 'VAT 19%' exists with matching name, value and code -- reusing
-  . click new.product
-  . ok: product.itemno to exist and settle
-  . editor scope via product.itemno
-  . WARNING product.itemno: wrote 'MAT-DESK-02' but field reads 'Item Number'
-  . set product.itemno = 'MAT-DESK-02'
-  . WARNING product.name: wrote 'Anti-Fatigue Desk Mat' but field reads 'Name'
-  . set product.name = 'Anti-Fatigue Desk Mat'
-  . WARNING product.description: wrote 'Anti-Fatigue Desk Mat' but field reads 'Description'
-  . set product.description = 'Anti-Fatigue Desk Mat'
-  . WARNING product.price_gross: wrote '47.60' but field reads '$0.00'
-  . set product.price_gross = '47.60'
-  . WARNING product.cost_price: wrote '0.00' but field reads '$0.00'
-  . set product.cost_price = '0.00'
-  . select product.vat -> 'VAT 19%'
-  . set product.stock = '0.00'
-  . click order.save
-  . Product created: MAT-DESK-02 @ 47.60 gross
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . scope -> main shell
-  . Order tab 1 is ours (Cust.Ref. WEB-2026-0714-A17)
-  . click product_picker.open
-  . scope -> child window 'Select a product'
-  . scope -> child window 'Select a product'
-  . type search into product_dlg.search: attempt 1/2 failed (LookupError)
-  . type search into product_dlg.search: attempt 2/2 failed (LookupError)
-  . scope is Pane '' (L0, T0, R0, B0)
-  .   Text: []
-  .   Edit: []
-  .   Button: []
-  .   open child windows: []
-  . product:MAT-DESK-02: dialog auto-selected 'MAT-DESK-02' and closed
-  . scope -> main shell
-  . scope -> main shell
-  . grid: 2 row(s) via vision, columns ['Pos.', 'Qty.', 'Item No.', 'Picture', 'Name', 'Description', 'VAT', 'U.Price', 'Discount', 'Price']
-  . items: editor opened on click 2
-  . items: Qty. row 1 = 3 (cell 4.8%, 15.7%)
-  . items: U.Price row 1 = '40.00' (cell 34.7%, 15.6%)
-  . items: Discount row 1 = '0' (cell 39.7%, 15.6%)
-  . 3.16 ok: MAT-DESK-02 line price 120.00
+   150.7s . -- item 1/2: CHR-ERG-01
+   150.7s . scope -> main shell
+   154.2s . click product_picker.open
+   156.5s . scope -> child window 'Select a product'
+   158.7s . scope -> child window 'Select a product'
+   159.2s . set product_dlg.search = 'CHR-ERG-01'
+   164.1s . ok: address_dlg.list pixels to settle
+   166.9s . grid: 14 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT', '']
+   166.9s . product:CHR-ERG-01: no exact match for 'CHR-ERG-01' among 14 row(s)
+   166.9s .     candidate: ['', '', '', '', '', '', '']
+   166.9s .     candidate: ['', '', '', '', '', '', '']
+   166.9s .     candidate: ['', '', '', '', '', '', '']
+   166.9s .     candidate: ['', '', '', '', '', '', '']
+   166.9s .     candidate: ['', '', '', '', '', '', '']
+   166.9s .     required : ['CHR-ERG-01']
+   167.2s . click product_dlg.cancel
+   167.4s . scope -> main shell
+   168.5s . click menu.vats
+   170.2s . list view scope via vat.add
+   171.6s . set list.search = 'VAT 19%'
+   174.9s . ok: address_dlg.list pixels to settle
+   177.9s . grid rows measured by OCR at []%
+   177.9s . grid: 0 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Value']
+   179.0s . click vat.add
+   180.2s . set vat.name = 'VAT 19%'
+   181.2s . set vat.description = 'VAT 19%'
+   183.3s . select vat.code -> 'S (Standard rate)'
+   184.0s . note vat.value: wrote '19', field renders it as '19%'
+   184.0s . set vat.value = '19'
+   185.0s . click order.save
+   185.2s . VAT created: VAT 19% with S (Standard rate)
+   186.1s . click new.product
+   188.1s . ok: product.itemno to exist and settle
+   189.1s . editor scope via product.itemno
+   189.8s . set product.itemno = 'CHR-ERG-01'
+   190.7s . set product.name = 'Ergonomic Desk Chair'
+   191.6s . set product.description = 'Ergonomic Desk Chair'
+   192.4s . set product.price_gross = '297.50'
+   193.2s . set product.cost_price = '0.00'
+   195.1s . select product.vat -> 'VAT 19%'
+   195.7s . set product.stock = '0.00'
+   196.8s . click order.save
+   197.0s . Product created: CHR-ERG-01 @ 297.50 gross
+   197.0s . scope -> main shell
+   199.5s . scope -> main shell
+   203.4s . click product_picker.open
+   205.6s . scope -> child window 'Select a product'
+   207.9s . scope -> child window 'Select a product'
+   208.3s . set product_dlg.search = 'CHR-ERG-01'
+   212.9s . ok: address_dlg.list pixels to settle
+   215.5s . grid rows measured by OCR at [7.2]%
+   215.5s . grid: 1 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT']
+   216.2s . clicked grid row 0 at 7.2% of the grid
+   216.8s . click product_dlg.ok
+   217.0s . product:CHR-ERG-01: selected exact match for 'CHR-ERG-01'
+   217.0s . scope -> main shell
+   221.9s . grid rows measured by OCR at [9.1]%
+   221.9s . grid: 1 row(s) via vision, columns ['Pos.', 'Qty.', 'Item No.', 'Picture', 'Name', 'Description', 'VAT', 'U.Price', 'Discount', 'Price']
+   225.5s . items: Qty. row 0 = 2 (cell 4.8%, 9.6%)
+   228.7s . items: U.Price row 0 = '250.00' (cell 34.7%, 9.4%)
+   231.8s . items: Discount row 0 = '10' (cell 39.7%, 9.6%)
+   233.0s . 3.16 ok: CHR-ERG-01 line price 450.00
+   233.0s . -- item 2/2: MAT-DESK-02
+   233.0s . scope -> main shell
+   236.8s . click product_picker.open
+   238.9s . scope -> child window 'Select a product'
+   240.9s . scope -> child window 'Select a product'
+   241.4s . set product_dlg.search = 'MAT-DESK-02'
+   246.1s . ok: address_dlg.list pixels to settle
+   247.3s . grid: 14 row(s) via vision, columns ['Item No.', 'Name', 'Description', 'Stock', 'Price', 'VAT', '']
+   247.3s . product:MAT-DESK-02: no exact match for 'MAT-DESK-02' among 14 row(s)
+   247.3s .     candidate: ['', '', '', '', '', '', '']
+   247.3s .     candidate: ['', '', '', '', '', '', '']
+   247.3s .     candidate: ['', '', '', '', '', '', '']
+   247.3s .     candidate: ['', '', '', '', '', '', '']
+   247.3s .     candidate: ['', '', '', '', '', '', '']
+   247.3s .     required : ['MAT-DESK-02']
+   247.6s . click product_dlg.cancel
+   247.8s . scope -> main shell
+   248.8s . click menu.vats
+   250.2s . list view scope via vat.add
+   251.3s . set list.search = 'VAT 19%'
+   254.3s . ok: address_dlg.list pixels to settle
+   256.7s . grid rows measured by OCR at [5.5]%
+   256.7s . grid: 1 row(s) via vision, columns ['Standard', 'Name', 'Description', 'Value']
+   256.7s . 'VAT 19%' was created by this run with S (Standard rate)
+   256.7s . VAT 'VAT 19%' exists with matching name, value and code -- reusing
+   257.6s . click new.product
+   259.5s . ok: product.itemno to exist and settle
+   260.3s . editor scope via product.itemno
+   261.4s . set product.itemno = 'MAT-DESK-02'
+   262.0s . set product.name = 'Anti-Fatigue Desk Mat'
+   262.5s . set product.description = 'Anti-Fatigue Desk Mat'
+   263.1s . set product.price_gross = '47.60'
+   263.8s . set product.cost_price = '0.00'
+   265.6s . select product.vat -> 'VAT 19%'
+   266.2s . set product.stock = '0.00'
+   267.0s . click order.save
+   267.2s . Product created: MAT-DESK-02 @ 47.60 gross
+   267.2s . scope -> main shell
+   269.6s . scope -> main shell
+   273.1s . click product_picker.open
+   275.4s . scope -> child window 'Select a product'
+   277.5s . scope -> child window 'Select a product'
+   278.0s . set product_dlg.search = 'MAT-DESK-02'
+   278.0s . product:MAT-DESK-02: dialog auto-selected 'MAT-DESK-02' and closed
+   278.0s . scope -> main shell
+   278.0s . scope -> main shell
+   282.9s . grid rows measured by OCR at [9.0, 15.1]%
+   282.9s . grid: 2 row(s) via vision, columns ['Pos.', 'Qty.', 'Item No.', 'Picture', 'Name', 'Description', 'VAT', 'U.Price', 'Discount', 'Price']
+   286.0s . items: Qty. row 1 = 3 (cell 4.8%, 15.5%)
+   289.2s . items: U.Price row 1 = '40.00' (cell 34.7%, 15.6%)
+   291.9s . items: Discount row 1 = '0' (cell 39.7%, 15.5%)
+   293.4s . 3.16 ok: MAT-DESK-02 line price 120.00
 [5/6] stage 4: saving and verifying the Order
-  . 4.3 ok: Total Net = 570.00
-  . 4.3 ok: VAT = 108.30
-  . 4.3 ok: Total = 678.30
-  . click order.save
-  . click menu.documents
-  . list view scope via documents.add
-  . WARNING list.search: wrote 'WEB-2026-0714-A17' but field reads ''
-  . set list.search = 'WEB-2026-0714-A17'
-  . ok: address_dlg.list pixels to settle
-  . grid: 1 row(s) via vision, columns ['', 'Document', 'Date', 'Name', 'Cust.Ref.', 'State', 'Total', 'Printed']
-  . stage 4 ok -- Order saved, totals 570.00/108.30/678.30
+   294.2s . 2.4: invoice address matches the source
+   294.2s . 2.8: delivery differs from billing; a second address carries it
+   295.0s . 4.3 ok: Total Net = 570.00
+   295.8s . 4.3 ok: VAT = 108.30
+   296.5s . 4.3 ok: Total = 678.30
+   297.4s . click order.save
+   298.5s . click menu.documents
+   300.1s . list view scope via documents.add
+   301.8s . set list.search = 'WEB-2026-0714-A17'
+   304.8s . ok: address_dlg.list pixels to settle
+   308.2s . grid rows measured by OCR at [5.4]%
+   308.2s . grid: 1 row(s) via vision, columns ['', 'Document', 'Date', 'Name', 'Cust.Ref.', 'State', 'Total', 'Printed']
+   308.3s . stage 4 ok -- Order saved, totals 570.00/108.30/678.30
 [6/6] stage 5: linked Invoice
-  . click order.followup_invoice
-  . click invoice.editor_tab
-  . ok: invoice.editor_tab to show invoice.paid
-  . 5.1 ok: Cust.Ref. carried over as WEB-2026-0714-A17
-  . 4.3 ok: Invoice Total Net = 570.00
-  . 4.3 ok: Invoice VAT = 108.30
-  . 4.3 ok: Invoice Total = 678.30
-  . select invoice.payment -> 'Bank Transfer'
-  . click invoice.paid
-  . WARNING invoice.paid_date: wrote 'Jul 18, 2026' but field reads 'Sep 19, 2026'
-  . set invoice.paid_date = 'Jul 18, 2026'
-  . WARNING invoice.paid_value: wrote '678.30' but field reads '$678.30'
-  . set invoice.paid_value = '678.30'
-  . 5.3 ok: paid, 2026-07-18, 678.30
-  . click order.save
-  . click menu.documents
-  . list view scope via documents.add
-  . WARNING list.search: wrote 'WEB-2026-0714-A17' but field reads ''
-  . set list.search = 'WEB-2026-0714-A17'
-  . ok: address_dlg.list pixels to settle
-  . grid: 2 row(s) via vision, columns ['', 'Document', 'Date', 'Name', 'Cust.Ref.', 'State', 'Total', 'Printed']
-  . 5.5 ok: Invoice paid at 678.30, source Order still open at 678.30
-  . stage 5 ok -- Invoice saved and verified; source Order still open
+   308.3s . scope -> main shell
+   310.2s . order.editor_tab: click failed (order.editor_tab: no candidate matched Selector(control_type='TabItem', name='*New Order', auto_id=None, anchor=None, index=0, discriminator=None, same_row=False, within=False, pick='first', describe=''))
+   311.1s . ok: order.editor_tab to show order.custref
+   312.6s . click order.followup_invoice
+   314.8s . click invoice.editor_tab
+   316.0s . ok: invoice.editor_tab to show invoice.paid
+   317.0s . 5.1 ok: Cust.Ref. carried over as WEB-2026-0714-A17
+   318.0s . 4.3 ok: Invoice Total Net = 570.00
+   318.9s . 4.3 ok: Invoice VAT = 108.30
+   319.9s . 4.3 ok: Invoice Total = 678.30
+   322.6s . select invoice.payment -> 'Bank Transfer'
+   323.7s . click invoice.paid
+   326.5s . set invoice.paid_value = '678.30'
+   328.8s . set invoice.paid_date = 2026-07-18 (field reads 'Jul 18, 2026')
+   330.9s . 5.3 ok: paid, 2026-07-18, 678.30 (read back from the Invoice)
+   331.9s . click order.save
+   333.0s . click menu.documents
+   334.5s . list view scope via documents.add
+   335.8s . set list.search = 'WEB-2026-0714-A17'
+   338.7s . ok: address_dlg.list pixels to settle
+   341.3s . grid rows measured by OCR at [5.5, 9.1]%
+   341.3s . grid: 2 row(s) via vision, columns ['', 'Document', 'Date', 'Name', 'Cust.Ref.', 'State', 'Total', 'Printed']
+   341.3s . 5.5 ok: Invoice paid at 678.30, source Order still open at 678.30
+   341.5s . stage 5 ok -- Invoice saved and verified; source Order still open
 
-done -- Order and linked Invoice saved and verified (WEB-2026-0714-A17, 678.30 EUR)
+==========================================================================
+================ DONE - Order and linked Invoice verified ================
+==========================================================================
+  Order       saved and found in Data > Documents, still open
+  Invoice     linked, paid 2026-07-18, 678.30 EUR
+  Cust.Ref.   WEB-2026-0714-A17
+  Totals      net 570.00 / VAT 108.30 / gross 678.30
+  Lines       CHR-ERG-01 x2, MAT-DESK-02 x3
+  Elapsed     344s
+==========================================================================
+  exit 0
+

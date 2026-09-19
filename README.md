@@ -11,6 +11,8 @@ status, and verifies both saved records.
 No hardcoded screen coordinates. Nothing is assumed about window size, theme or DPI.
 
 Design rationale, grounding strategy and tradeoffs: **[DESIGN.md](DESIGN.md)**.
+A guided tour that assumes no prior context: **[docs/WALKTHROUGH.md](docs/WALKTHROUGH.md)**.
+What the application turned out to be, found by running it: **[docs/FINDINGS.md](docs/FINDINGS.md)**.
 
 ---
 
@@ -30,16 +32,25 @@ Product created: MAT-DESK-02 @ 47.60 gross
 4.3 ok: Total Net 570.00 / VAT 108.30 / Total 678.30
 stage 4 ok -- Order saved and found in Data > Documents
 5.1 ok: Cust.Ref. carried over; Invoice totals match the Order
-5.3 ok: paid, 2026-07-18, 678.30
+5.3 ok: paid, 2026-07-18, 678.30 (read back from the Invoice)
 5.5 ok: Invoice paid at 678.30, source Order still open at 678.30
 done -- Order and linked Invoice saved and verified
 ```
 
-**Four consecutive runs from a clean database produced this identical result.**
+**Repeated runs from a clean database produce this identical result.** "Clean" means
+the workspace *and* `%USERPROFILE%\.fakturama2` are deleted first, so every master
+record above was created by the run that reports it.
 
 Confirmed in the HSQLDB rather than only on screen -- `FKT_DOCUMENT` holds
 `Order PO000001` and `Invoice INV000001`, both carrying `WEB-2026-0714-A17`.
-Full trace: [`docs/run-log-complete.txt`](docs/run-log-complete.txt).
+
+| Evidence | Where |
+|---|---|
+| full trace, with elapsed time per step | [`docs/run-log-complete.txt`](docs/run-log-complete.txt) |
+| what was read out of the image, and what will be done with it | [`input/order.extracted.json`](input/order.extracted.json) |
+| ten annotated screenshots, callouts mapped to spec steps | [`docs/screenshots/`](docs/screenshots/) |
+| the run as 35 annotated frames | [`docs/film/`](docs/film/) |
+| what the application turned out to be | [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 
 `Data > Documents` at the end of a run
 ([`docs/screenshots/05-documents-verified.png`](docs/screenshots/05-documents-verified.png)):
@@ -102,17 +113,55 @@ Verified working free alternates on OpenRouter, if the default is rate-limited u
 That file is hand-transcribed from the image and exists only so a reviewer without a
 key can still exercise the automation. The live extractor overwrites it on success.
 
+### Checking what was read out of the image
+
+Two files in `input/`, doing different jobs:
+
+| File | Is | Written by |
+|---|---|---|
+| `order.png` | the input document | given |
+| `order.json` | a replay **cache** -- raw fields only | the extractor, on success |
+| `order.extracted.json` | the **validation view** -- raw fields, everything derived from them, and the arithmetic result | every run, before the UI is touched |
+
+The cache answers *what did it read*. The validation view answers the question a human
+actually has: *what is it about to do with that*. The derived values are where the
+expensive mistakes live, so they are written out explicitly:
+
+| Field | Why it is there |
+|---|---|
+| `checks.arithmetic` + `identities` | the four sums, with the numbers, pass or fail |
+| `line_net_recomputed` / `line_net_agrees` | the image's stated line total against ours |
+| `product_master_gross` + note | `250.00 x 1.19 = 297.50`. The **line** discount must not touch it (3.9) -- `267.75` would be wrong |
+| `delivery_same_as_billing` + `step_2_8` | decides whether the Delivery role goes on the Main address or on a second one (2.8) |
+
+Both of those are invisible in the raw fields and both are easy to get backwards, which
+is why they are stated in words rather than left to be inferred.
+
+```
+python -m src.run input/order.png --extract-only   # writes it, touches no UI
+```
+
 ### Windows setup
 
-1. Install Fakturama: <https://www.fakturama.info/download/> — first launch creates the
-   workspace and database.
-2. `pip install -r requirements.txt` (pulls `pywinauto` + `Pillow`; both are Windows-only
-   and are skipped by the environment markers elsewhere).
-3. Point the script at the executable if it is not at the default path:
+1. Install Fakturama: <https://www.fakturama.info/download/>.
+2. `pip install -r requirements.txt` — `pywinauto`, `Pillow` and
+   `rapidocr-onnxruntime`. All three carry `sys_platform == "win32"` markers, so the
+   same file installs nothing on Linux and the offline tests still run there.
+3. `python tools\first_run.py` — Fakturama's very first launch shows an initialization
+   dialog asking for a working directory, *before* the main window exists. This accepts
+   the defaults so the workspace and database get created. Once per machine.
+4. Point the script at the executable if it is not at the default path:
    ```
    python -m src.run input/order.png --fakturama "C:\Program Files\Fakturama2\Fakturama.exe"
    ```
    or `--attach` to drive an already-running instance.
+
+5. **Resetting between runs** is not obvious and is worth knowing before you try it:
+   the "already initialised" flag lives in `%USERPROFILE%\.fakturama2`, not in the
+   workspace, and survives deleting the workspace and even reinstalling the MSI. Both
+   directories have to go, and Fakturama's process is named `Fakturama`, not
+   `Fakturama2` -- a running instance holds `Database.lck`, so a reset that kills the
+   wrong name silently deletes nothing.
 
 ---
 
@@ -126,27 +175,37 @@ order.png ──▶ extract ──▶ OrderData ──▶ flow ──▶ driver 
 
 | File | Lines | Role |
 |---|---|---|
-| `src/extract.py` | ~260 | image → validated `OrderData`. Pure; no GUI, no Windows. |
-| `src/driver.py` | ~340 | UIA primitives, the 80-entry selector registry, waiting, screenshots. |
-| `src/flow.py` | ~350 | the five stages, transcribed with spec step numbers in comments. |
-| `src/vision.py` | ~65 | T4 tiebreak, reached only when UIA leaves an ambiguity. |
-| `src/run.py` | ~110 | CLI, env loading, exit codes. |
-| `tests/test_extract.py` | ~90 | 11 assertions. No pytest needed. |
+| `src/extract.py` | 267 | image → validated `OrderData`. Pure; no GUI, no Windows. |
+| `src/driver.py` | 1347 | UIA primitives, the 104-entry selector registry, waiting, grid reading, screenshots. |
+| `src/flow.py` | 796 | the five stages, transcribed with spec step numbers in comments. |
+| `src/vision.py` | 255 | the provider chain, the T4 tiebreak, and reading custom-painted grids. |
+| `src/ocr.py` | 152 | local OCR: measures column spans and row centres. |
+| `src/run.py` | 122 | CLI, env loading, exit codes. |
+| `tests/test_extract.py` | 119 | 23 assertions. No pytest needed. |
 
-`python3 tests/test_extract.py` → `ok - 11 checks passed`
+`python3 tests/test_extract.py` → `ok - 23 checks passed`
 
-### Control discovery, in one paragraph
+### Control discovery
 
-Fakturama is Eclipse RCP/SWT, so on Windows it renders native Win32 widgets and UIA sees
-a real tree — but SWT sets almost no `AutomationId`, and names are locale-derived.
-Resolution therefore runs in four tiers, stopping at the first unambiguous hit: **T1** a
-tree search *scoped to the active window*; **T2** an anchor-relative walk (find the
-`Addresses` label, take the nth sibling) which is how "the upper icon, not the lower
-green +" is expressed as tree position rather than pixels; **T3** tooltip/help-text
-disambiguation; **T4** an LLM shown a screenshot of *the anchor's own UIA rectangle*,
-returning an index — the model picks which, UIA still supplies where.
+Fakturama is Eclipse RCP/SWT. On Windows it renders native Win32 widgets, so UIA sees a
+real tree — but SWT sets almost no `AutomationId`, and names are locale-derived.
 
-No `sleep()` anywhere. Every action is followed by a polled, UIA-observed postcondition.
+Four tiers, first unambiguous hit wins:
+
+| Tier | Method | Buys |
+|---|---|---|
+| T1 | tree search **scoped to the active window** | "Save" means *this Order's* Save |
+| T2 | anchor-relative walk — find the `Addresses` label, take the nth sibling | "the upper icon, not the lower green +" as tree position, not pixels |
+| T3 | tooltip / help-text disambiguation | separates identical siblings |
+| T4 | an LLM shown a screenshot of **the anchor's own UIA rectangle** | the model picks *which*; UIA still supplies *where* |
+
+T2 is the answer to "no hardcoded coordinates" — ordering is a property of the widget
+hierarchy, so resize, DPI and theme changes survive. Verified: full runs at both
+1024×768 and 2560×1600, same code.
+
+**Waiting** is a polled, UIA-observed postcondition after every action — never a fixed
+delay standing in for a check. There are 18 `time.sleep` calls left, all settles after
+a relayout, each followed by the poll or read-back that actually decides.
 
 ### Exit codes
 
@@ -176,22 +235,24 @@ then halts. Money is `Decimal` throughout — never `float`.
 
 ### Three rules that are easy to get backwards
 
-Each has a test and a step-numbered comment:
+Each has a test and a step-numbered comment.
 
-- **3.9** — the Product master gross price is `unit_net × (1 + vat/100)`. The *line*
-  discount must not touch it: `250.00 → 297.50`, not `225.00 → 267.75`.
-- **2.8** — the Delivery role goes on the Main address only when billing and delivery are
-  identical. In the supplied image they are **not** (Friedrichstrasse 88 / 10117 vs
-  Beusselstrasse 44 / 10553), so an unconditional shortcut builds the wrong Debtor.
-- **5.3** — if the status is not PAID, no payment date or value is invented.
+| Step | Rule | Right | Wrong |
+|---|---|---|---|
+| **3.9** | Product master price is `unit_net × (1 + vat/100)`. The *line* discount must not touch it | `297.50` | `267.75` |
+| **2.8** | Delivery role goes on the Main address **only if** billing == delivery. Here they differ (Friedrichstrasse 88 / 10117 vs Beusselstrasse 44 / 10553) | a second address carries it | unconditional shortcut → wrong Debtor |
+| **5.3** | if not PAID, invent no date or value. If PAID, the date and amount are **read back out of the Invoice** | halt on mismatch | this step once printed `ok` from what it meant to write, while the Invoice saved with the run date |
 
 ### Ambiguity halts
 
-Steps 2.3, 2.10.2, 3.3, 3.5, 3.12 and 5.2 all collapse into one `AmbiguityHalt` carrying
-the logical control, the query, the candidates seen and a screenshot. Guessing between
-two Debtors is the one failure this must never produce.
+| | |
+|---|---|
+| Steps | 2.3, 2.10.2, 3.3, 3.5, 3.12, 5.2 |
+| Shape | more than one exact candidate, or one whose properties conflict with the source |
+| Carries | the logical control, the query, the candidates seen, a screenshot |
+| Why | guessing between two Debtors is the one failure this must never produce |
 
-Because every stage is check → create → re-select, a second run finds the master data
+Every stage is check → create → re-select, so a second run finds the master data
 already present and skips creation.
 
 ---
@@ -244,66 +305,66 @@ Confirmed correct as guessed: `order.custref`, `order.addresses`, `order.items`,
 
 ## What is not done
 
-Every numbered step in the task runs and verifies. What remains is scope and
-robustness rather than missing behaviour.
+Every numbered step runs and verifies. What remains is scope and robustness, not
+missing behaviour.
 
-**Reuse paths are under-exercised.** Runs start from a clean database, so the
-create-because-missing branches are well covered and the reuse-an-existing-record
-branches much less so. VAT reuse does run; Debtor and Product reuse mostly do not.
+| Gap | Detail | Closing it takes |
+|---|---|---|
+| **Reuse paths thin** | runs start clean, so create-because-missing is well covered and reuse is not. VAT reuse runs; Debtor and Product reuse mostly do not | five runs against a warm database in CI |
+| **A pre-existing VAT's code is unverifiable** | 3.5 requires `VAT code (E-Invoice) = S`, but the VATs list has no VAT-code column. One this run created is known to be `S`; an existing one is not, so the caller halts rather than reuse one that might be `Z`, `E` or `AE` | opening each VAT's editor to read the code |
+| **The arithmetic gate is blind to strings** | it proves every number, but `CHR-ERG-O1` with a letter O satisfies all four identities and creates a junk Product | a second extraction pass over the string fields |
+| **One locale, one version** | English, Fakturama 2.2.0 | selector-registry data, not code |
+| **Single-window assumption** | an unexpected modal blocks the poll until timeout, then halts. Safe, not recovered | a modal sweep before each postcondition |
+| **Currency renders as `$`** | a fresh install shows `$` while the source is EUR. The checks compare numbers, so correctness is unaffected | setting the workspace currency |
+| **~6 minutes per run** | ~70% is UIA tree traversal. Removing one duplicate resolution per field measured 4%, inside noise, so the cost is inside a single `find()` | caching handles per editor -- deliberately not done, since a stale handle turns silent wrong answers into *fast* silent wrong answers |
 
-**A pre-existing VAT's code cannot be checked.** 3.5 requires
-`VAT code (E-Invoice) = S`, but the VATs list has no VAT-code column. A VAT this run
-created is known to be S; for one that already existed the code is unverifiable from
-the list, so it is reported as unverified and the caller halts rather than reusing a
-VAT that might be Z, E or AE.
-
-**The arithmetic gate is blind to strings.** It proves every number in the document,
-but `CHR-ERG-O1` with a letter O satisfies all four identities and would create a junk
-Product. A second extraction pass over the string fields would close this.
-
-**One locale, one version.** English, Fakturama 2.2.0. Both are selector-registry data.
-
-**Resetting Fakturama means reinstalling it.** Its state lives in
-`%USERPROFILE%\.fakturama2`, not the workspace: deleting the workspace, or even
-reinstalling the MSI, leaves the "already initialised" flag behind, and Fakturama then
-skips seeding its default Shipping/VAT/payment. It refuses to open a New Order with
-"No default value found for Shippings", which points nowhere near the cause.
-
-**Currency.** A fresh install renders amounts with `$` while the source document is
-EUR. The checks compare numbers, so this does not affect correctness, but a production
-run should set the workspace currency to match.
+Resetting Fakturama between runs has two traps, both documented under
+[Windows setup](#windows-setup).
 
 ## Written question -- if I had 3 more hours
 
-**1. Drive the address-role widget (~60 min).** The one control I could not reach, and
-the only functional gap left. Next attempts, in order: OS-level `SendInput` rather than
-UIA-synthesised clicks, since the popup may only respond to real input; then
-Fakturama's own import path, which writes `FKT_ADDRESS_CONTACTTYPES` directly. Closing
-this makes the Order show its invoice address and lets 2.4 be enforced instead of
-reported.
+**1. Assert identity wherever a record is selected rather than computed (~60 min).**
+This is the first thing I would do, because three separate bugs here had the identical
+shape and I only found the third by accident. Each time, a check confirmed the
+*numbers* and never confirmed the *identity*: the payment date read back as correct
+because nothing read it back at all; the Debtor's Company saved as `NULL` behind a
+field that looked right; and an Order line held `CHR-ERG-01` while reporting
+`3.16 ok: MAT-DESK-02 line price 120.00`, because the right price had been typed onto
+the wrong line and so every total matched the source image.
 
-**2. Exercise the reuse branches (~45 min).** Every run so far starts from a clean
-database, so *create-because-missing* is well tested and *reuse-an-existing-record* is
-barely tested. I would run five times from clean, then five against a populated
-database, and assert the second set creates no duplicate master data and produces
-exactly one new Order each time. That is also the real test of the idempotency claim.
+Arithmetic is the cheap half of correctness. It says the totals are consistent; it
+cannot say they are consistent about the right thing. Two of those three are now
+guarded individually. What I want instead is one rule applied everywhere: every record
+this flow selects rather than computes gets its identity asserted against the source at
+the point of selection, in one place, rather than as three separate patches written
+after three separate incidents.
 
-**3. The second delivery address (~30 min).** 2.8 implies a second Debtor address when
-billing and delivery differ. Currently only the Main address is created.
+**2. Exercise the reuse branches (~45 min).** Every run starts from a clean database,
+so *create-because-missing* is well covered and *reuse-an-existing-record* is barely
+covered. Five runs from clean, then five against a populated database, asserting the
+second set creates no duplicate master data and produces exactly one new Order each
+time. That is also the only real test of the idempotency claim, which is currently an
+argument rather than a result.
 
-**4. Close the string-validation hole (~30 min).** The arithmetic gate proves the
+**3. Close the string-validation hole (~30 min).** The arithmetic gate proves the
 numbers but is blind to strings: `CHR-ERG-O1` with a letter O satisfies every identity
 and would create a junk Product. A second extraction pass over the string fields only,
 halting on any byte-level disagreement, is a hard signal for one extra call. I prefer
 this to a confidence-weighted ensemble -- self-reported model confidence is
 uncalibrated, so weighting dresses a guess up as a number, while a diff either matches
-or does not.
+or it does not.
 
-**5. Make halts self-contained (~15 min).** A halt currently writes a screenshot and
-raises. It should write a folder: the screenshot, the candidate rows, the extracted
-values in play, and the step number, so a human can resolve it without re-running
-anything.
+**4. Replace the settles with a real predicate (~30 min).** There are 18 `time.sleep`
+calls left. None substitutes for a check -- each is followed by the poll or read-back
+that decides -- but they exist because an action re-lays out a panel and exposes
+nothing pollable in the gap. A "the panel's bounding rectangles stopped changing"
+predicate removes the whole category and makes the timing story honest rather than
+merely defensible.
+
+**5. Make halts self-contained (~15 min).** A halt writes a screenshot and raises. It
+should write a folder: the screenshot, the candidate rows, the extracted values in
+play, and the step number, so a human can resolve it without re-running anything.
 
 What I would *not* spend the time on: more selectors. The registry is data, and the
-four-tier resolution has now survived every shape Fakturama presents. The remaining
-risk is in the paths that have not run often enough, not in the ones that have.
+four-tier resolution has survived every shape Fakturama presents. The remaining risk is
+not in finding controls -- it is in believing what the controls say afterwards.
