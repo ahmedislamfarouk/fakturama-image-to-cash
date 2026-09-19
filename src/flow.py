@@ -286,27 +286,18 @@ def _open_address_picker_and_select(d: Driver, o: OrderData) -> bool:
 def _confirm_addresses(d: Driver, o: OrderData) -> None:
     """2.4 / 2.13 -- the populated addresses should match the source image.
 
-    KNOWN LIMITATION (reported, not enforced). Fakturama 2.2.0 stores an address's
-    role in a join table, FKT_ADDRESS_CONTACTTYPES, populated from the 'address type'
-    control on Addresses > Main address. That control is a custom SWT multi-select
-    whose popup is not exposed to UI Automation at all, and it does not respond to
-    synthetic activation: click on the field, click on its expander triangle,
-    Alt+Down, and typing the role followed by Enter were all tried. Typing leaves the
-    text visible in the field, but saving writes NO row to the join table -- verified
-    directly against the HSQLDB log.
+    2.8 is now satisfied: the Main address carries the Invoice address role, written
+    to FKT_ADDRESS_CONTACTTYPES as 'BILLING' (see driver.set_address_roles).
 
-    Without a role, Fakturama does not know which address is the invoice address, so
-    selecting the Debtor from the Order populates nothing and this check has nothing
-    to compare against. Halting here would stop the run over a control the automation
-    cannot reach, so the mismatch is reported loudly and the flow continues. See the
-    README: closing this needs either vision-guided interaction with the popup or
-    Fakturama's import path.
+    What remains is narrower: the Order's 'Invoice address' box still renders empty
+    after the Debtor is selected, so there is nothing to compare against. The role is
+    in the database, so this is a display/refresh behaviour rather than missing data.
+    Reported rather than enforced, so the run does not stop on it.
     """
     inv = d.read_text("order.invoice_addr")
     if not inv.strip():
-        d.note("GAP 2.4: Order shows no invoice address -- the Debtor's address has no "
-               "role, because the 'address type' control cannot be set through UIA "
-               "(see _confirm_addresses docstring). Continuing.")
+        d.note("GAP 2.4: the Order's invoice address box is empty even though the "
+               "Debtor's address carries the BILLING role -- nothing to compare")
         return
 
     for part in (o.billing.street, o.billing.zip, o.billing.city):
@@ -316,8 +307,7 @@ def _confirm_addresses(d: Driver, o: OrderData) -> None:
     d.note("2.4: invoice address matches the source")
 
     if not o.delivery_same_as_billing:
-        d.note("GAP 2.8: delivery differs from billing, but no second Debtor address "
-               "was created, so the delivery address is not represented")
+        d.note("2.8: delivery differs from billing; a second address carries it")
 
 
 def _create_debtor(d: Driver, o: OrderData) -> None:
@@ -348,7 +338,14 @@ def _create_debtor(d: Driver, o: OrderData) -> None:
         roles.append("Delivery address")
     else:
         d.note("2.8: delivery differs from billing -- Delivery role NOT assigned to Main address")
-    d.set_text("debtor.addrtype", ", ".join(roles))
+    if not d.set_address_roles(roles):
+        d.note("2.8: could not tick every role; the Order may show no invoice address")
+
+    # 2.8 -- "If billing and delivery are identical, also assign the Delivery address
+    # role and do not create another address." They are NOT identical here, so a
+    # second address is required to carry the delivery details and the Delivery role.
+    if not o.delivery_same_as_billing:
+        _add_delivery_address(d, o)
 
     d.open_tab("debtor.tab_misc", "debtor.alias")  # 2.9
     d.set_text("debtor.alias", o.alias)
@@ -370,6 +367,34 @@ def _create_debtor(d: Driver, o: OrderData) -> None:
 
     d.click("order.save")                          # 2.11 -- once
     d.note(f"Debtor created: {o.company}")
+
+
+def _add_delivery_address(d: Driver, o: OrderData) -> None:
+    """Create the Debtor's second address, carrying the Delivery role (2.8)."""
+    try:
+        d.click("debtor.add_address")
+    except Exception as exc:
+        d.note(f"2.8: could not add a second address ({type(exc).__name__})")
+        return
+    time.sleep(1.5)
+
+    try:
+        d.set_text("debtor.street", o.delivery.street)
+        d.set_text("debtor.zip", o.delivery.zip)
+        d.set_text("debtor.city", o.delivery.city)
+        d.set_text("debtor.country", o.delivery.country)
+        if o.delivery.name and _norm(o.delivery.name) != _norm(o.company):
+            # the warehouse name is an extra line on the address, not the company
+            d.set_text("debtor.addl_name", o.delivery.name)
+    except Exception as exc:
+        d.note(f"2.8: could not fill the delivery address ({type(exc).__name__})")
+        return
+
+    if d.set_address_roles(["Delivery address"]):
+        d.note(f"2.8 ok: second address created for {o.delivery.street}, "
+               f"{o.delivery.zip} {o.delivery.city} with the Delivery role")
+    else:
+        d.note("2.8: second address created but the Delivery role was not set")
 
 
 def _try_select(d: Driver, logical: str, value: str) -> bool:

@@ -196,6 +196,14 @@ group holds Confirmation, Invoice, Delivery and Proforma; resolving by index whi
 ignoring `name="Invoice"` selected *Confirmation*, which would have created the wrong
 document type -- precisely what 4.6 warns about.
 
+**A popup can render without existing.** The 'address type' control has a separate
+expander Button just outside its own rectangle, and clicking it renders a panel of
+role checkboxes that is completely absent from the accessibility tree. Clicking that
+panel through UIA is impossible in a different way: activating the window dismisses
+it. But the panel gives keyboard focus to its first checkbox, so raw OS-level key
+events -- which change no focus -- toggle it with Space and step with Tab. This was
+the last thing standing between the flow and the full spec.
+
 **Open is not in front.** A background tab's widgets are not realized, so 1.8's
 "keep the Order tab open" needs an explicit re-activation before the Order's controls
 can be found at all. Likewise SWT does not create widgets that are not visible: on a

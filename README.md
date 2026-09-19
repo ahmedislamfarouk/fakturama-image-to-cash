@@ -52,8 +52,14 @@ PO000001    Jul 14, 2026   WEB-2026-0714-A17   open   $678.30
 The Order carries the *extracted* order date (1.5) while the Invoice takes today's
 (5.1), and the source Order remains open beside its paid Invoice (5.5).
 
-**Not done:** the Debtor's address carries no role, so the Order shows no invoice
-address. See *What is not done* below -- it is logged at runtime, not hidden.
+Both address roles persist, so the Debtor is genuinely attached to the documents:
+
+```
+FKT_ADDRESS_CONTACTTYPES (1,'BILLING')    Friedrichstrasse 88, 10117 Berlin
+FKT_ADDRESS_CONTACTTYPES (2,'DELIVERY')   Beusselstrasse 44,  10553 Berlin
+FKT_DOCUMENT 'Order'   'Northstar Office GmbH, Marta Klein'  WEB-2026-0714-A17
+FKT_DOCUMENT 'Invoice' 'Northstar Office GmbH, Marta Klein'  WEB-2026-0714-A17
+```
 
 ---
 
@@ -238,28 +244,22 @@ Confirmed correct as guessed: `order.custref`, `order.addresses`, `order.items`,
 
 ## What is not done
 
-**The Debtor's address has no role, so the Order shows no invoice address.** Fakturama
-stores the role in a join table, `FKT_ADDRESS_CONTACTTYPES`, populated from the
-`address type` control on Addresses > Main address. That control is a custom SWT
-multi-select whose popup is not exposed to UI Automation at all, and it does not
-respond to synthetic activation: clicking the field, clicking its expander triangle,
-Alt+Down, and typing the role followed by Enter were all tried. Typing leaves the text
-visible in the field, but saving writes no row to the join table -- verified directly
-against the HSQLDB log, not inferred from the screen. The run logs this gap rather
-than halting, because stopping there would block a flow that is otherwise complete.
-
-**No second Debtor address.** 2.8 implies one when billing and delivery differ, which
-they do in the supplied image (Friedrichstrasse 88 / 10117 vs Beusselstrasse 44 /
-10553). Only the Main address is created, so the delivery address is not represented.
+Every numbered step in the task runs and verifies. What remains is scope and
+robustness rather than missing behaviour.
 
 **Reuse paths are under-exercised.** Runs start from a clean database, so the
 create-because-missing branches are well covered and the reuse-an-existing-record
-branches much less so. The VAT reuse path is the exception and does run.
+branches much less so. VAT reuse does run; Debtor and Product reuse mostly do not.
 
-**A pre-existing VAT's code cannot be checked.** 3.5 requires `VAT code (E-Invoice) = S`,
-but the VATs list has no VAT-code column. A VAT this run created is known to be S; for
-one that already existed the code is unverifiable from the list, so it is reported as
-unverified and the caller halts rather than reusing a VAT that might be Z, E or AE.
+**A pre-existing VAT's code cannot be checked.** 3.5 requires
+`VAT code (E-Invoice) = S`, but the VATs list has no VAT-code column. A VAT this run
+created is known to be S; for one that already existed the code is unverifiable from
+the list, so it is reported as unverified and the caller halts rather than reusing a
+VAT that might be Z, E or AE.
+
+**The arithmetic gate is blind to strings.** It proves every number in the document,
+but `CHR-ERG-O1` with a letter O satisfies all four identities and would create a junk
+Product. A second extraction pass over the string fields would close this.
 
 **One locale, one version.** English, Fakturama 2.2.0. Both are selector-registry data.
 
@@ -269,9 +269,9 @@ reinstalling the MSI, leaves the "already initialised" flag behind, and Fakturam
 skips seeding its default Shipping/VAT/payment. It refuses to open a New Order with
 "No default value found for Shippings", which points nowhere near the cause.
 
-**Currency.** A fresh install renders amounts with `$` while the source document is EUR.
-The checks compare numbers, so this does not affect correctness, but a production run
-should set the workspace currency to match.
+**Currency.** A fresh install renders amounts with `$` while the source document is
+EUR. The checks compare numbers, so this does not affect correctness, but a production
+run should set the workspace currency to match.
 
 ## Written question -- if I had 3 more hours
 

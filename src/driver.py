@@ -52,6 +52,50 @@ def escape_keys(text: str) -> str:
     return "".join("{" + c + "}" if c in _TYPE_KEYS_SPECIAL else c for c in str(text))
 
 
+def raw_click(x: int, y: int) -> None:
+    """Click at absolute screen coordinates without activating any window.
+
+    pywinauto's click_input() activates the target window first, and activating the
+    shell DISMISSES Fakturama's address-role popup before the click can land -- the
+    popup is an override-redirect panel that closes on focus change. Moving the
+    physical cursor and sending raw button events leaves focus alone, so the popup
+    survives long enough to receive the click.
+    """
+    import ctypes
+
+    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
+    ctypes.windll.user32.SetCursorPos(int(x), int(y))
+    time.sleep(0.15)
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+
+def raw_key(vk: int, shift: bool = False) -> None:
+    """Send a key at OS level without touching window focus.
+
+    Same reason as raw_click: anything that activates a window dismisses Fakturama's
+    address-role popup. The popup gives keyboard focus to its first checkbox (it
+    draws the dotted focus border), so Space toggles it and Tab moves between them.
+    """
+    import ctypes
+
+    KEYEVENTF_KEYUP = 0x0002
+    VK_SHIFT = 0x10
+    u = ctypes.windll.user32
+    if shift:
+        u.keybd_event(VK_SHIFT, 0, 0, 0)
+    u.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.05)
+    u.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+    if shift:
+        u.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.2)
+
+
+VK_SPACE, VK_TAB, VK_RETURN, VK_ESCAPE = 0x20, 0x09, 0x0D, 0x1B
+
+
 class AmbiguityHalt(Exception):
     """Spec steps 2.3, 2.10.2, 3.3, 3.5, 3.12 and 5.2 all collapse into this.
 
@@ -149,8 +193,13 @@ SELECTORS: dict[str, Selector] = {
     "debtor.salutation":    Selector("ComboBox", anchor="debtor.salutation_lbl", index=0, same_row=True),
     "debtor.tab_addresses": Selector("TabItem", name="Addresses"),
     "debtor.tab_mainaddr":  Selector("TabItem", name="Main address"),
+    # The '+' beside the 'Main address' tab adds a SECOND address to the Debtor,
+    # which 2.8 needs when billing and delivery differ.
+    "debtor.add_address":   Selector("Button", name="+", anchor="debtor.tab_mainaddr",
+                                     index=0, same_row=True),
     "debtor.addrtype_lbl":  Selector("Text", name="address type"),
     "debtor.addrtype":      Selector("Edit", anchor="debtor.addrtype_lbl", index=0, same_row=True),
+    "debtor.addl_name":     Selector("Edit", name="additional name"),
     "debtor.street":        Selector("Edit", name="Street"),
     "debtor.zipcity_label": Selector("Text", name="ZIP - City"),
     "debtor.zip":           Selector("Edit", anchor="debtor.zipcity_label", index=0, same_row=True),
@@ -959,6 +1008,129 @@ class Driver:
         self.note(f"items: {column} row {row_index} = {value!r} "
                   f"(cell {col['x_pct']:.1f}%, {rows[row_index]['y_pct']:.1f}%)")
 
+    def set_address_roles(self, roles: list[str]) -> bool:
+        """Tick the address-type roles (2.8) in a popup UIA cannot see.
+
+        'address type' is an Edit with a separate expander Button immediately to its
+        RIGHT, outside the Edit's own rectangle -- clicking inside the Edit never
+        opens anything, which is why this looked impossible for a long time. Clicking
+        the Button renders a small panel of checkboxes ('Invoice address',
+        'Delivery address') that is completely absent from the accessibility tree:
+        no Window, no List, no CheckBox.
+
+        So it is driven the same way as the painted grids: UIA gives the anchor
+        rectangle, OCR measures the label positions inside the captured image, and the
+        click lands on the checkbox beside the label -- relative to the window, never
+        an authored coordinate.
+        """
+        from src import ocr
+
+        field = self.find("debtor.addrtype")
+        fr = field.element_info.rectangle
+        buttons = [b for b in (self._main or self._scope).descendants(control_type="Button")
+                   if abs(b.element_info.rectangle.top - fr.top) < 6
+                   and fr.right - 4 <= b.element_info.rectangle.left <= fr.right + 40]
+        if not buttons:
+            self.note("2.8: no expander button beside 'address type'")
+            return False
+
+        expander = buttons[0]
+        try:
+            expander.set_focus()
+        except Exception:
+            pass
+        expander.click_input()
+        time.sleep(1.2)
+
+        win = self._main or self._scope
+        wr = win.element_info.rectangle
+        shot = self.shots / "_roles.png"
+        self.shots.mkdir(parents=True, exist_ok=True)
+        win.capture_as_image().save(shot)
+
+        if not ocr.available():
+            self.note("2.8: local OCR unavailable; cannot locate the role checkboxes")
+            return False
+
+        er = expander.element_info.rectangle
+        # The panel renders just below the expander. Keep the band generous: on the
+        # second address it sat lower and a tight window found only one of the two
+        # labels, which left the Delivery role unset.
+        y_lo, y_hi = er.bottom - wr.top - 20, er.bottom - wr.top + 220
+        x_lo = er.left - wr.left - 120
+
+        def looks_like(text: str, want: str) -> bool:
+            """Tolerate OCR's confusion over the leading character.
+
+            'Invoice address' comes back as 'Jnvoice address' -- I, J and l are the
+            classic OCR substitution. Dropping the first character of the target still
+            keeps 'nvoice address' and 'elivery address' distinct from each other.
+            """
+            t, w = text.lower().strip(), want.lower().strip()
+            return w in t or (len(w) > 2 and w[1:] in t)
+
+        # The panel gives keyboard focus to its first checkbox -- it draws the dotted
+        # focus border -- so Space toggles it and Tab steps between them. Keys, not
+        # clicks: clicking through pywinauto activates the window, and activating
+        # dismisses the panel before the click lands. Raw OS events leave focus alone.
+        labels = []
+        for f in ocr._boxes(shot):
+            if y_lo <= f[0] <= y_hi and f[1] >= x_lo and "address" in f[3].lower():
+                labels.append((f[1], f[3]))
+        labels.sort()
+        order = [t for _x, t in labels]
+        if not order:
+            self.note("2.8: no role labels found in the panel")
+            return False
+        self.note(f"2.8: panel offers {order}")
+
+        def field_text() -> str:
+            try:
+                return field.get_value() or ""
+            except Exception:
+                return ""
+
+        # If OCR only caught some of the labels, fall back to position: the panel
+        # always offers Invoice then Delivery, so Tab-stepping still reaches the one
+        # we want. Every attempt is verified against the field, so a wrong guess is
+        # detected rather than silently accepted.
+        for w in roles:
+            if not any(looks_like(lbl, w) for lbl in order):
+                order.append(w)
+                self.note(f"2.8: {w!r} not read by OCR; reaching it by position")
+
+        ticked, at = [], 0
+        for idx, label in enumerate(order):
+            wanted = next((w for w in roles if looks_like(label, w)), None)
+            if wanted is None:
+                continue
+            # Space TOGGLES, so only press it when the role is not already set --
+            # otherwise a second run would switch the role back off.
+            if looks_like(field_text(), wanted):
+                self.note(f"2.8: {wanted!r} already set")
+                ticked.append(wanted)
+                continue
+            while at < idx:
+                raw_key(VK_TAB)
+                at += 1
+            raw_key(VK_SPACE)
+            time.sleep(0.6)
+            shown = field_text()
+            if looks_like(shown, wanted):
+                ticked.append(wanted)
+                self.note(f"2.8: {wanted!r} set; field reads {shown!r}")
+            else:
+                raw_key(VK_SPACE)   # put it back rather than leave it half-toggled
+                self.note(f"2.8: Space on {label!r} did not set {wanted!r} (field {shown!r})")
+
+        # dismiss the panel so it does not swallow later clicks
+        try:
+            field.click_input()
+        except Exception:
+            pass
+        time.sleep(0.4)
+        return len(ticked) == len(roles)
+
     def grid_pane(self, scope=None):
         """The results grid inside a selector dialog: the largest childless Pane.
 
@@ -1002,7 +1174,21 @@ class Driver:
 
         table = read_table(shot)
         rows = [[str(c) for c in row] for row in table.get("rows", [])]
+
+        # Row POSITIONS come from OCR, never from the model. Asked for a row's centre
+        # the model estimates, and the estimates are wrong in the same way its column
+        # estimates were: a first row reported at 68.2% of the grid, which clicked an
+        # empty row and selected nothing while the dialog closed on OK. OCR measures.
         self._grid_y = [float(y) for y in table.get("row_y_pct", [])]
+        try:
+            from src import ocr
+            if ocr.available():
+                measured = [float(r["y_pct"]) for r in ocr.read_layout(shot).get("rows", [])]
+                if len(measured) >= len(rows) and measured:
+                    self._grid_y = measured[:len(rows)]
+                    self.note(f"grid rows measured by OCR at {[round(y,1) for y in self._grid_y][:4]}%")
+        except Exception as exc:
+            self.note(f"grid row measurement fell back to the model ({type(exc).__name__})")
         how = table.get("_engine", "vision")
         self.note(f"grid: {len(rows)} row(s) via {how}, columns {table.get('columns')}")
         return rows
