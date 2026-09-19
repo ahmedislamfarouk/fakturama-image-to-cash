@@ -148,6 +148,23 @@ Friedrichstrasse 88, 10117 Berlin; delivery is Northstar Office Warehouse, Beuss
 10553 Berlin. An implementation that takes the shortcut unconditionally produces the wrong
 Debtor. The comparison is made on normalized address fields, not assumed either way.
 
+### Addendum: what the live application changed
+
+Two things only became visible once this ran against Fakturama 2.2.0, and both
+strengthened rather than weakened the tiering above.
+
+**The picker icons have no name.** The controls beside `Addresses` are unnamed `Image`
+elements sharing a Pane with the label, distinguished only by tree order (which matches
+vertical order). "The upper icon, not the lower green +" has no name-based or id-based
+expression at all -- T2 is not a convenience here, it is the only option.
+
+**The result grids are invisible to UIA.** SWT custom-paints them: the selector dialogs
+contain no `Table`, `DataGrid`, `List` or `Custom` element. So reading candidate rows --
+the input to every exact-match decision in the spec -- cannot come from the accessibility
+tree. It comes from the grid element's own UIA rectangle, captured and read by the same
+vision model that reads the order image. This is the T4 principle applied to content
+rather than control choice: UIA says *where*, the model says *what*.
+
 ## 6. Halting
 
 The spec halts on ambiguity in five places (2.3, 2.10.2, 3.3, 3.5, 3.12) plus 5.2, and all six

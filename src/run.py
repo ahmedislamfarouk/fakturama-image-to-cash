@@ -30,6 +30,15 @@ def load_env(path: Path = Path(".env")) -> None:
             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
+def _shot(d, name: str):
+    """Best-effort screenshot; never let capture failure mask the real error."""
+    try:
+        from datetime import datetime
+        return d.screenshot(f"{name}-{datetime.now():%H%M%S}")
+    except Exception:
+        return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Fakturama image-to-cash automation")
     ap.add_argument("image", nargs="?", default="input/order.png", type=Path)
@@ -87,13 +96,22 @@ def main(argv: list[str] | None = None) -> int:
         flow.stage5_invoice(d, order)
 
     except AmbiguityHalt as halt:
+        shot = _shot(d, "halt")
         print(f"\nSTOPPED FOR MANUAL REVIEW\n  {halt}", file=sys.stderr)
+        if shot:
+            print(f"  screenshot: {shot}", file=sys.stderr)
         return 2
+    except Exception as exc:
+        # Always leave a picture behind. A traceback says which call failed; only a
+        # screenshot says what the application was actually showing -- that is how the
+        # '+49' -> '$9' corruption was found, and it would never have raised.
+        shot = _shot(d, "error")
+        print(f"\nFAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        if shot:
+            print(f"  screenshot: {shot}", file=sys.stderr)
+        raise
     finally:
-        try:
-            d.screenshot("final-state")
-        except Exception:
-            pass
+        _shot(d, "final-state")
 
     print(f"\ndone -- Order and linked Invoice saved and verified "
           f"({order.external_ref}, {order.gross_total} {order.currency})")

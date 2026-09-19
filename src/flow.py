@@ -29,13 +29,13 @@ def _norm(s: str) -> str:
 
 
 def _rows(d: Driver, grid_logical: str) -> list[list[str]]:
-    """Read a selector dialog's result grid as plain text rows."""
-    grid = d.find(grid_logical)
-    out = []
-    for item in grid.descendants(control_type="DataItem"):
-        cells = [c.window_text().strip() for c in item.descendants(control_type="Text")]
-        out.append(cells or [item.window_text().strip()])
-    return out
+    """Read a selector dialog's result grid.
+
+    grid_logical is kept for call-site readability, but Fakturama's selector grids are
+    custom-painted and expose nothing to UIA (no Table/DataGrid/List/DataItem), so the
+    rows are read from the grid rectangle's pixels. See driver.grid_rows().
+    """
+    return d.grid_rows()
 
 
 def _exact(rows: list[list[str]], expected: list[str]) -> list[int]:
@@ -91,8 +91,8 @@ def stage1_open_order(d: Driver, o: OrderData) -> None:
     # 1.4 -- the proposed No. is left untouched on purpose.
     d.set_text("order.date", o.order_date.isoformat())      # 1.5
     d.set_text("order.custref", o.external_ref)             # 1.6
-    d.click("order.pricemode_net")                          # 1.7
-    d.select("order.vat_with", "With VAT")                  # 1.7
+    d.select("order.pricemode", "Net")                      # 1.7 (defaults to 'Gross')
+    d.select("order.vat_with", "With VAT")                  # 1.7 (already the default)
     d.wait_value("order.custref", o.external_ref)
     d.note(f"stage 1 ok -- Order open, Cust.Ref. {o.external_ref}, date {o.order_date}")
 
@@ -129,7 +129,7 @@ def _open_address_picker_and_select(d: Driver, o: OrderData) -> bool:
             ok_logical="address_dlg.ok", cancel_logical="address_dlg.cancel",
         )
     finally:
-        d.scope_window(".*Fakturama.*")
+        d.scope_main()
 
 
 def _confirm_addresses(d: Driver, o: OrderData) -> None:
@@ -152,7 +152,7 @@ def _create_debtor(d: Driver, o: OrderData) -> None:
     d.set_text("debtor.firstname", o.contact_first_name)
     d.set_text("debtor.lastname", o.contact_last_name)
 
-    d.click("debtor.tab_addresses")                # 2.7 Addresses > Main address
+    d.open_tab("debtor.tab_addresses", "debtor.street")   # 2.7 Addresses > Main address
     d.set_text("debtor.street", o.billing.street)
     d.set_text("debtor.zip", o.billing.zip)
     d.set_text("debtor.city", o.billing.city)
@@ -160,24 +160,34 @@ def _create_debtor(d: Driver, o: OrderData) -> None:
     d.set_text("debtor.email", o.email)
     d.set_text("debtor.phone", o.phone)
 
-    # 2.8 -- Delivery role goes on the Main address ONLY when the two are identical.
-    # On the supplied image they are not (Friedrichstrasse 88 vs Beusselstrasse 44),
-    # so taking this shortcut unconditionally would build the wrong Debtor.
-    d.click("debtor.role_invoice")
+    # 2.8 -- the roles live in the 'address type' field, not in checkboxes: Fakturama
+    # 2.2.0 has no CheckBox anywhere in its shell, and the field's own dropdown popup
+    # is custom-painted and invisible to UIA. It does accept the role name as text.
+    #
+    # The Delivery role goes on the Main address ONLY when the two addresses are
+    # identical. On the supplied image they are not (Friedrichstrasse 88 / 10117 vs
+    # Beusselstrasse 44 / 10553), so taking the shortcut would build the wrong Debtor.
+    roles = ["Invoice address"]
     if o.delivery_same_as_billing:
-        d.click("debtor.role_delivery")
+        roles.append("Delivery address")
     else:
         d.note("2.8: delivery differs from billing -- Delivery role NOT assigned to Main address")
+    d.set_text("debtor.addrtype", ", ".join(roles))
 
-    d.click("debtor.tab_misc")                     # 2.9
+    d.open_tab("debtor.tab_misc", "debtor.alias")  # 2.9
     d.set_text("debtor.alias", o.alias)
     d.set_text("debtor.discount", "0")
     d.select("debtor.netgross", "Net")
 
-    d.click("debtor.tab_payment")                  # 2.10
+    # 2.10 -- there is no separate Payment tab in Fakturama 2.2.0: Alias name,
+    # Discount, Net or Gross and Payment all live on Miscellaneous, so 2.9 and 2.10
+    # happen without leaving this tab.
     if not _try_select(d, "debtor.payment", o.payment_method):
         _create_payment_method(d, o.payment_method)
-        d.click("debtor.tab_payment")
+        # 2.10.6 -- the payment editor is now in front; come back to the Debtor
+        # editor before its inner tabs exist again.
+        d.click("debtor.editor_tab")
+        d.open_tab("debtor.tab_misc", "debtor.alias")
         if not _try_select(d, "debtor.payment", o.payment_method):
             raise AmbiguityHalt("payment.reselect", o.payment_method, ["not selectable after save"],
                                 d.screenshot("halt-payment-reselect"))
@@ -201,7 +211,6 @@ def _create_payment_method(d: Driver, method: str) -> None:
         raise AmbiguityHalt("payment.code", method, sorted(PAYMENT_CODE),
                             d.screenshot("halt-payment-code"))
 
-    d.click("menu.data")
     d.click("menu.payments")                       # 2.10.1
     d.set_text("list.search", method)
     d.wait_stable("address_dlg.list")
@@ -214,7 +223,7 @@ def _create_payment_method(d: Driver, method: str) -> None:
         d.note(f"payment method {method!r} already exists -- reusing")
         return
 
-    d.click("list.add")                            # 2.10.2 green + upper-right
+    d.click("payment.add")                         # 2.10.2 green + upper-right
     d.set_text("payment.name", method)             # 2.10.3
     d.set_text("payment.description", method)      # Account deliberately left blank
     d.select("payment.code", code)                 # 2.10.4
@@ -252,13 +261,12 @@ def _open_product_picker_and_select(d: Driver, line: OrderLine) -> bool:
             ok_logical="product_dlg.ok", cancel_logical="product_dlg.cancel",
         )
     finally:
-        d.scope_window(".*Fakturama.*")
+        d.scope_main()
 
 
 def _ensure_vat(d: Driver, line: OrderLine) -> None:
     """3.4 - 3.6. Reuse only on a full three-way match; otherwise create, else halt."""
     pct = f"{line.vat_pct.normalize():f}"
-    d.click("menu.data")
     d.click("menu.vats")                           # 3.4
     d.set_text("list.search", line.vat_name)
     d.wait_stable("address_dlg.list")
@@ -277,7 +285,7 @@ def _ensure_vat(d: Driver, line: OrderLine) -> None:
         d.note(f"VAT {line.vat_name!r} exists and matches -- reusing")
         return
 
-    d.click("list.add")                            # 3.6
+    d.click("vat.add")                             # 3.6
     d.set_text("vat.name", line.vat_name)
     d.set_text("vat.description", line.vat_name)
     d.select("vat.code", "S (Standard rate)")
@@ -332,7 +340,6 @@ def stage4_save_order(d: Driver, o: OrderData) -> None:
     _check_total(d, "order.total", o.gross_total, "Total")
 
     d.click("order.save")                                                # 4.4
-    d.click("menu.data")
     d.click("menu.documents")                                            # 4.5
     d.set_text("list.search", o.external_ref)
     d.wait_stable("address_dlg.list")
@@ -380,7 +387,6 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
         d.note("5.3: not PAID -- leaving paid clear, inventing no date or value")
 
     d.click("order.save")                                                # 5.4
-    d.click("menu.data")
     d.click("menu.documents")                                            # 5.5
     d.set_text("list.search", o.external_ref)
     d.wait_stable("address_dlg.list")

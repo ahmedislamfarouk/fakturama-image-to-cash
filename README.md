@@ -147,6 +147,52 @@ already present and skips creation.
 
 ---
 
+## Verified against Fakturama 2.2.0
+
+The selector registry started as guesses from the spec's figures. It has since been
+checked against a live UIA tree (Windows 11 Pro VM, Fakturama 2.2.0 with bundled JRE).
+What the real application does:
+
+- **SWT exposes usable `Name` values but junk `AutomationId`s.** Ids are numeric window
+  handles (`131528`, `197376`, `66534`) that change between runs. Name-based lookup
+  scoped to a window is the only stable T1 -- as designed.
+- **The picker icons have no name at all.** The two controls beside `Addresses` are
+  unnamed `Image` elements sharing a Pane with the label:
+  `Text 'Addresses'` (y=276), `Image` (y=299, the existing-contact picker),
+  `Image` (y=327, the green +). Tree order matches vertical order. Step 2.1's "upper
+  icon, not the lower green +" is *only* expressible as anchor-relative tree position,
+  which is what T2 does. This is the single strongest justification for the design.
+- **Dialogs are child Windows of the main shell**, not top-level windows. Searching
+  top-level alone finds nothing; `scope_window()` now searches the shell's descendants
+  first.
+- **SWT ignores synthetic clicks on unfocused dialogs.** Every click now calls
+  `set_focus()` first and falls back to the UIA Invoke pattern.
+- **The result grids are not exposed to UIA -- and this is now handled.** The
+  `Select the address` dialog contains no `Table`, `DataGrid`, `List` or `Custom`
+  element, only nested `Pane`s: SWT custom-paints those tables, so candidate rows are
+  invisible to the accessibility tree. `driver.grid_rows()` therefore locates the table
+  body as *the largest Pane containing no Edit* (every enclosing Pane holds the search
+  box, so this lands exactly on the grid), captures **that element's own UIA
+  rectangle**, and reads the rows with the same vision model used for the order image.
+  UIA still supplies *where*; only the pixels inside are read. Verified live: the grid
+  Pane resolves to (434,140)-(1212,564) and an empty table correctly returns zero rows,
+  sending the flow down the creation branch.
+
+Corrected names (guess -> actual):
+
+| Logical | Guessed | Actual |
+|---|---|---|
+| `toolbar.order` | `Order` | `Create: New Order` |
+| `order.save` | `Save` | `Save the current contents` |
+| `new.contact` | Button `New Contact` | SplitButton `Create a new contact` |
+| `new.product` | `New product` | `Create a new product` |
+| `order.followup` | Text | Group `Create a follow-up document` |
+| `address_dlg.search` | Edit named `Search` | unnamed Edit beside Text `Search:` |
+| picker icons | `Button` | unnamed `Image` |
+
+Confirmed correct as guessed: `order.custref`, `order.addresses`, `order.items`,
+`order.discount`, `order.total`, `menu.data`, `order.followup_invoice`.
+
 ## What is not done
 
 - **The selector `Name` strings are written from the spec's figures, not from a live UIA
