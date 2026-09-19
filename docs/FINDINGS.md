@@ -22,8 +22,8 @@ of them reported success.
 | 6 | `3.16 ok: MAT-DESK-02 line price 120.00` | the line held **CHR-ERG-01** | the Product saved with its name as its SKU, so the picker took the wrong row -- and the right price was typed onto it, so every total matched |
 | 7 | `select payment.code -> 'Credit transfer'` | the payment code saved **empty** | `ListItem.select()` is a UIA pattern call and does not fire the listener either |
 
-**They share one shape: the check confirmed the numbers and never confirmed the
-identity.** Arithmetic says the totals are consistent. It cannot say they are
+> **They share one shape: the check confirmed the numbers and never confirmed the
+> identity.** Arithmetic says the totals are consistent. It cannot say they are
 consistent *about the right thing*. Anywhere a record is selected rather than
 computed, identity needs its own assertion.
 

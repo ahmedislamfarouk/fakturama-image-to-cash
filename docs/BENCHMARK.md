@@ -29,7 +29,7 @@ Windows VM, where `rapidocr` is installed).
 
 ## What the numbers say
 
-**Nobody misreads a glyph.** These are crisp, machine-rendered tables at 1:1. Character
+> **Nobody misreads a glyph.** These are crisp, machine-rendered tables at 1:1. Character
 accuracy was never the differentiator and choosing on it would have been choosing on the
 wrong axis.
 

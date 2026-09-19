@@ -1,21 +1,20 @@
 
-# Fakturama Image-to-Cash Automation
+# Fakturama Image-to-Cash
 
-One order image in; one saved and verified Order plus its linked Invoice out.
+**One order image in. One saved, verified Order and its linked Invoice out.**
 
-The script reads a sales-order image, opens a New Order in Fakturama, resolves the
-Debtor and every Product through the Order's **own selectors**, creates whatever master
-data is missing (Debtor, payment method, VAT rate, Product), returns to the same open
-Order, saves it, creates the linked Invoice via the follow-up action, applies the paid
-status, and verifies both saved records.
+![a full run](docs/run.gif)
 
-No hardcoded screen coordinates. Nothing is assumed about window size, theme or DPI.
+*A full run. 35 clicks, 316 seconds of real time at 15×, every click marked where it
+landed with the spec step it belongs to. Also as
+[mp4](docs/recording.mp4), a [1× cut](docs/recording-realtime.mp4), and a
+[folder of frames](docs/film/).*
 
 ## Deliverables
 
 | Asked for | Here |
 |---|---|
-| **Part 1 — design doc**, 1–4 pages, no code | **[DESIGN.md](DESIGN.md)** — ~3 pages |
+| **Part 1 — design doc**, 1–4 pages, no code | **[DESIGN.pdf](DESIGN.pdf)** — 4 pages. Source: [DESIGN.md](DESIGN.md) |
 | **Source code with a clear structure in a Git repo** | [Where everything is](#where-everything-is) — `src/` (6 modules), `tests/`, `tools/`, `input/`, `docs/` |
 | **Setup instructions: dependencies and how to run** | **[Setup](#setup-dependencies-and-how-to-run)** — 4 steps. Dependencies are `pywinauto`, `Pillow`, `rapidocr-onnxruntime` in [requirements.txt](requirements.txt). [Commands](#commands) has the commands and flags. |
 | **Annotated screenshots or a short recording** | **both** — [10 annotated screenshots](docs/screenshots/), [35 annotated frames](docs/film/), and a [22-second clip with every click marked](docs/recording.mp4) |
@@ -25,6 +24,20 @@ No hardcoded screen coordinates. Nothing is assumed about window size, theme or 
 Every one of the spec's **57 numbered steps** runs and is traceable in the code by its
 number. Search `src/flow.py` for `2.10.2` or `3.16` and you will land on the line that
 implements it.
+
+## What it does
+
+![The Order, complete](docs/screenshots/01-order-complete.png)
+
+The automation reads a sales-order image, opens a New Order in Fakturama, resolves the
+Debtor and every Product through the Order's **own selectors**, creates whatever master
+data is missing, returns to the same open Order, saves it, creates the linked Invoice
+through the follow-up action, applies the paid status, and verifies both saved records.
+
+No hardcoded screen coordinates. Nothing assumed about window size, theme or DPI.
+
+> The interesting part is not clicking. It is deciding, at each step, whether what I am
+> looking at is the thing I meant — and stopping when I cannot tell.
 
 ## Where everything is
 
@@ -126,6 +139,16 @@ And in the database itself:
 | `FKT_PAYMENT`              | code `30` — the UNTDID 4461 code for a credit transfer                                        |
 
 ### Evidence
+
+The picker before the Debtor exists, and after it was created — same dialog, same query:
+
+| | |
+|---|---|
+| ![no match](docs/screenshots/02-picker-finds-nothing.png) | ![one match](docs/screenshots/03-picker-finds-it.png) |
+
+That pair is the whole argument for proving persistence by re-selecting rather than
+trusting the editor's own "saved" state.
+
 
 | What                                                        | Where                                                         |
 | ----------------------------------------------------------- | ------------------------------------------------------------- |
@@ -299,8 +322,11 @@ line_net  == qty × unit_net × (1 − disc/100)
 net_total == Σ line_net
 vat_total == Σ (line_net × vat/100)
 gross     == net_total + vat_total
-```On the supplied image:`2×250×0.90 = 450.00 `,`3×40 = 120.00 `,`Σ = 570.00`,`19% = 108.30 `,`gross = 678.30`. A failure re-prompts once naming the broken identity,
-then halts. Money is `Decimal` throughout — never `float`.
+```
+
+On the supplied image: `2×250×0.90 = 450.00`, `3×40 = 120.00`, `Σ = 570.00`,
+`19% = 108.30`, `gross = 678.30`. A failure re-prompts once naming the broken
+identity, then halts. Money is `Decimal` throughout — never `float`.
 
 ### Three rules that are easy to get backwards
 
@@ -376,14 +402,14 @@ Resetting Fakturama between runs has two traps, both documented under
 
 ## Written question -- if I had 3 more hours
 
-| # | What | Why it is first/next | Time |
+| # | Do | Because | Time |
 |---|---|---|---|
-| 1 | **Assert identity wherever a record is selected rather than computed** | Three bugs here had the same shape and I found the third by accident: the check confirmed the *numbers* and never the *identity*. An Order line held `CHR-ERG-01` while reporting `3.16 ok: MAT-DESK-02` — the right price typed onto the wrong line, so every total matched. One rule in one place, not three patches after three incidents. | 50 min |
-| 2 | **Test the reuse branches** | Every run starts from a clean database, so *create-because-missing* is covered and *reuse* is not. Five clean runs, then five against a populated one, asserting no duplicate master data. It is also the only real test of the idempotency claim — currently an argument, not a result. | 45 min |
-| 3 | **Make it faster, safely** | ~70% of a run is UIA resolution ([TIMING.md](docs/TIMING.md)). I tried the naive fix and it produced a wrong invoice: the Debtor has two address tabs, SWT names both fields `Street`, and the cached handle passed every check while pointing at the wrong one. The safe version scopes the cache to one editor's lifetime. Needs (2) first. | 45 min |
-| 4 | **Close the string-validation hole** | The arithmetic gate proves the numbers but `CHR-ERG-O1` with a letter O satisfies all four identities. A second extraction pass over string fields only, halting on any disagreement — a hard signal, unlike a confidence score, which is uncalibrated and dresses a guess up as a number. | 25 min |
-| 5 | **Make halts self-contained** | A halt writes a screenshot and raises. It should write a folder: screenshot, candidate rows, extracted values, step number — so a human resolves it without re-running. | 15 min |
+| 1 | Check **which record**, not just the numbers | Three bugs, same shape. Worst: a line held `CHR-ERG-01` while the log said `MAT-DESK-02`. Right price, wrong product — so all three totals still matched. One rule, one place: if the flow *picks* a record, prove it picked the right one. | 50 min |
+| 2 | Test the **"already exists"** path | Every run starts empty, so *create* is tested and *find* is not. Five runs from empty, five against a full database, assert no duplicates. Also the only real proof that re-running is safe. | 45 min |
+| 3 | Make it **faster** without making it lie | 70% of a run is *finding* controls. I tried remembering them and reverted it — it put the delivery street in the billing address, because both tabs name the field `Street`. The safe version forgets on every tab change. Needs (2) first. | 45 min |
+| 4 | Catch a misread **word** | The sums prove every number. `CHR-ERG-O1` with a letter O passes all four and creates a junk Product. Read the text twice, stop if the readings differ. Not a confidence score — models report those badly. | 25 min |
+| 5 | **Pin** the one thing I trust by hand | Payment method is created before the Debtor editor opens, because Fakturama loads that dropdown once and never refreshes it. Verified by hand, never by a test. | 15 min |
+| 6 | Make a **halt** hand over everything | It writes a screenshot. It should write a folder: screenshot, the rows it chose between, the values, the step number. | 15 min |
 
-**Not** more selectors. The registry is data and the four-tier resolution has survived
-every shape Fakturama presents. The remaining risk is not finding controls — it is
-believing what they say afterwards.
+**Not** more selectors. Finding controls is solved here. The risk is believing what they
+say afterwards.

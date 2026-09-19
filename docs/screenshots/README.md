@@ -20,6 +20,11 @@ the run that shows it.
 
 ## The ten
 
+![the Order, complete](01-order-complete.png)
+
+*`01-order-complete.png` — the callouts carry the spec step each region satisfies.*
+
+
 | File | Stage | The claim it evidences |
 |---|---|---|
 | `01-order-complete.png` | 1-4 | the Order: reference, date, two address roles, two correctly identified lines, matching totals |
@@ -51,6 +56,12 @@ picked by mistake.
 
 ### The film
 
+![one frame](../film/007-click-new.contact.png)
+
+*Frame 7 of 35. The control the driver pressed keeps full brightness inside the box;
+everything else dims. The bar names the frame, the spec step, the control and its purpose.*
+
+
 `docs/film/` is the run as a folder of frames: `001-click-toolbar.order.png` through
 `035-click-menu.documents.png`. Flick through it and you have watched the run.
 
@@ -58,7 +69,9 @@ Each frame is annotated. The control that was just clicked keeps its full bright
 inside a red box while everything else dims, and the bar underneath names the frame, the
 spec step, the control and what it was for:
 
-```07   2.5   new.contact   -- create the Debtor                              82s```
+```
+07   2.5   new.contact   -- create the Debtor                              82s
+```
 
 The highlight is not guesswork: the driver records the element's own UIA rectangle
 beside each frame in `frames.json`, because a screenshot of a window holding a thousand
@@ -82,7 +95,9 @@ step number and control name underneath.
 ```
 python -m src.run input/order.png --record
 python3 tools/video.py
-````docs/recording-realtime.mp4` is the same frames at 1x -- 260 seconds, pauses left in --
+```
+
+`docs/recording-realtime.mp4` is the same frames at 1x -- 260 seconds, pauses left in --
 for working out where the time goes rather than for showing the flow. The breakdown is
 in [`../TIMING.md`](../TIMING.md).
 
@@ -140,9 +155,11 @@ identity.** Arithmetic says the totals are consistent. It cannot say they are co
 *about the right thing*. The last one was found by looking closely at a screenshot while
 preparing this directory.
 
-## Diagnostics
+## When a run stops
 
-`dbg-*`, `role-*`, `error-*` and `halt-*` are raw captures kept deliberately -- they are
-the evidence behind the findings in `DESIGN.md`. The `halt-*` files matter most: they are
-what a reviewer is handed when a run stops for manual review, so they are part of the
-output contract rather than leftovers.
+![a halt](halt-address-invoice.png)
+
+`halt-address-invoice.png` is what a reviewer is handed when the run stops for manual
+review: the control, the query, the candidates it saw, and the screen at that moment.
+`src/run.py` writes one on every halt and every unexpected error, so a failure is never
+just a stack trace.
