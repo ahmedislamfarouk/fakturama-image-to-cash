@@ -94,7 +94,46 @@ def main() -> None:
     assert not _cell_matches("Northstar Office AG", "Northstar Office GmbH")
     assert not _cell_matches("", "Northstar Office GmbH")
 
-    print("ok - 16 checks passed")
+    # The paid date is written into a segmented widget that ignores non-digits
+    # and fills segments in display order. Typing the rendered string put
+    # 'Sep 20, 0026' in the field while the log still claimed 5.3 ok, so the
+    # digit order has to follow the format the widget is currently rendering.
+    from src.driver import Driver
+    assert Driver._date_format("Jul 18, 2026") == "%b %d, %Y"
+    assert Driver._date_format("18.07.2026") == "%d.%m.%Y"
+    assert Driver._parse_date("Jul 18, 2026") == date(2026, 7, 18)
+    assert Driver._parse_date("18.07.2026") == date(2026, 7, 18)
+    assert Driver._parse_date("not a date") is None
+
+    # US rendering wants month first, German rendering wants day first --
+    # same date, different keystrokes. And 'Jul' is typed as '07', so the
+    # digits must not be scraped out of the rendered string.
+    assert Driver._date_digits(date(2026, 7, 18), "Sep 19, 2026") == "07182026"
+    assert Driver._date_digits(date(2026, 7, 18), "19.09.2026") == "18072026"
+    assert Driver._date_digits(date(2026, 7, 18), "2026-09-19") == "20260718"
+
+    # A field that reads back its own label means nothing was typed into it.
+    # An entire Product was created empty because this only produced a warning.
+    from src.driver import _landed, _same_value, _digits
+
+    class FakeEl:
+        def __init__(self, name):
+            self.element_info = type("I", (), {"name": name})()
+
+    itemno = FakeEl("Item Number")
+    assert not _landed("Item Number", "MAT-DESK-02", itemno)   # the label: nothing landed
+    assert not _landed("", "MAT-DESK-02", itemno)              # empty: nothing landed
+    assert _landed("MAT-DESK-02", "MAT-DESK-02", itemno)
+
+    # ...but Fakturama's own rendering is not a failure.
+    price = FakeEl("Price")
+    assert _landed("$678.30", "678.30", price)
+    assert _landed("0%", "0", price)
+    assert _digits("$1.234,50") == "123450"
+    assert _same_value("678.30", "678.30")
+    assert not _same_value("$678.30", "678.30")
+
+    print("ok - 31 checks passed")
 
 
 if __name__ == "__main__":

@@ -41,12 +41,27 @@ def _focus_order(d: Driver, expect_ref: str | None = None) -> None:
     d.scope_main()
     ref = expect_ref or _ORDER_REF.get("value")
 
-    tabs = [t for t in d._main.descendants(control_type="TabItem")
-            if (t.element_info.name or "").strip().lstrip("*") == "New Order"]
+    # Match on '*New Order' AND on a saved Order's number, because saving renames
+    # the tab: an unsaved Order is '*New Order', a saved one is 'PO000001'. Stage 5
+    # runs after the save, so a name-only match for '*New Order' finds nothing and
+    # the follow-up click lands on whatever tab happens to be in front -- which
+    # after 4.5 is the Data > Documents list, where the click does nothing at all.
+    def _candidate(t) -> bool:
+        name = (t.element_info.name or "").strip().lstrip("*")
+        return name == "New Order" or _ORDER_TAB.get("name") == name
+
+    tabs = [t for t in d._main.descendants(control_type="TabItem") if _candidate(t)]
     if not tabs:
         d.open_tab("order.editor_tab", "order.custref")
         return
     if len(tabs) == 1 or not ref:
+        try:
+            tabs[0].click_input()
+            time.sleep(0.6)
+            if _norm(d.read_text("order.custref")) == _norm(ref or ""):
+                return
+        except Exception:
+            pass
         d.open_tab("order.editor_tab", "order.custref")
         return
 
@@ -62,6 +77,7 @@ def _focus_order(d: Driver, expect_ref: str | None = None) -> None:
         time.sleep(0.6)
         try:
             if _norm(d.read_text("order.custref")) == _norm(ref):
+                _ORDER_TAB["name"] = (tab.element_info.name or "").strip().lstrip("*")
                 d.note(f"Order tab {i} is ours (Cust.Ref. {ref})")
                 return
         except Exception:
@@ -72,6 +88,8 @@ def _focus_order(d: Driver, expect_ref: str | None = None) -> None:
 
 
 _ORDER_REF: dict[str, str] = {}
+#: The Order tab's name once Fakturama has renamed it on save (e.g. 'PO000001').
+_ORDER_TAB: dict[str, str] = {}
 
 
 def _open_picker(d: Driver, open_logical: str, title_re: str, search_logical: str,
@@ -228,13 +246,17 @@ def stage1_open_order(d: Driver, o: OrderData) -> None:
     d.click("toolbar.order")                       # 1.3
     d.wait_exists("order.custref")                 # wait for the New Order editor
     # 1.4 -- the proposed No. is left untouched on purpose.
-    d.set_text("order.date", o.order_date.isoformat())      # 1.5
+    d.set_date("order.date", o.order_date)                 # 1.5
     d.set_text("order.custref", o.external_ref)             # 1.6
     d.select("order.pricemode", "Net")                      # 1.7 (defaults to 'Gross')
     d.select("order.vat_with", "With VAT")                  # 1.7 (already the default)
     d.wait_value("order.custref", o.external_ref)
     _ORDER_REF["value"] = o.external_ref   # identity for _focus_order
-    d.note(f"stage 1 ok -- Order open, Cust.Ref. {o.external_ref}, date {o.order_date}")
+    got_date = d.read_date("order.date")                                 # 1.5 readback
+    if got_date != o.order_date:
+        raise AmbiguityHalt("order.date", str(o.order_date),
+                            [f"Order holds {got_date}"], d.screenshot("halt-order-date"))
+    d.note(f"stage 1 ok -- Order open, Cust.Ref. {o.external_ref}, date {got_date}")
 
 
 # --------------------------------------------------------------------------
@@ -311,8 +333,7 @@ def _confirm_addresses(d: Driver, o: OrderData) -> None:
 
 
 def _create_debtor(d: Driver, o: OrderData) -> None:
-    d.click("new.contact")                         # 2.5 -- Order tab stays open
-    d.wait_exists("debtor.company")
+    d.click_for("new.contact", "debtor.company")   # 2.5 -- Order tab stays open
     # 2.6 -- proposed Customer ID untouched; Salutation left as '---' when unsupplied.
     d.set_text("debtor.company", o.company)
     d.set_text("debtor.firstname", o.contact_first_name)
@@ -356,7 +377,20 @@ def _create_debtor(d: Driver, o: OrderData) -> None:
     # Discount, Net or Gross and Payment all live on Miscellaneous, so 2.9 and 2.10
     # happen without leaving this tab.
     if not _try_select(d, "debtor.payment", o.payment_method):
-        _create_payment_method(d, o.payment_method)
+        # This branch called a function that does not exist, so the one time it
+        # was taken the run died with a NameError instead of recovering. The
+        # method IS created before the Debtor editor opens, so reaching here
+        # means the combo had not picked up the new record yet. Re-assert it,
+        # then try the selection once more, and halt rather than save a Debtor
+        # with the wrong payment terms.
+        d.note(f"debtor.payment: {o.payment_method!r} not in the combo yet; re-checking")
+        _ensure_payment_method(d, o.payment_method)
+        _focus_order(d, o.external_ref)
+        d.open_tab("debtor.tab_misc", "debtor.alias")
+        if not _try_select(d, "debtor.payment", o.payment_method):
+            raise AmbiguityHalt("debtor.payment", o.payment_method,
+                                ["the Debtor's payment combo does not offer it"],
+                                d.screenshot("halt-debtor-payment"))
         # 2.10.6 -- the payment editor is now in front; come back to the Debtor
         # editor before its inner tabs exist again.
         d.click("debtor.editor_tab")
@@ -538,8 +572,7 @@ def _vat_code_is_standard(d: Driver, row: list[str], line: OrderLine) -> bool:
 
 
 def _create_product(d: Driver, line: OrderLine) -> None:
-    d.click("new.product")                         # 3.7 -- only after the VAT exists
-    d.wait_exists("product.itemno")
+    d.click_for("new.product", "product.itemno")   # 3.7 -- only after the VAT exists
     # Scope to this editor: the Order editor is open too and its labels collide
     # (Text 'VAT' matches in both), which would halt as ambiguous.
     ed = d.editor_scope("product.itemno")
@@ -586,12 +619,27 @@ def _complete_line(d: Driver, line: OrderLine) -> None:
 
 
 def _line_index(d: Driver, line: OrderLine) -> int:
-    """Which row of the Items table holds this SKU (rows are appended in source order)."""
+    """Which row of the Items table holds this SKU.
+
+    This used to fall back to the last row when the SKU was not found, on the
+    assumption that the picker had just appended it. That assumption is what let
+    the worst bug in this project through: the second Product was created empty,
+    the picker could not find it, the dialog auto-closed having selected the
+    FIRST product instead, and this function handed back the last row anyway.
+    The correct quantity, price and discount were then typed into a line holding
+    the wrong product -- so every total matched and the arithmetic gate passed
+    while the Order billed the wrong item.
+
+    A missing SKU means the selection did not do what we think it did. That is
+    exactly the "stop for manual review" case, not a case for a best guess.
+    """
     rows = d.grid_rows(d.items_pane())
     for i, cells in enumerate(rows):
         if any(_cell_matches(c, line.sku) for c in cells):
             return i
-    return max(0, len(rows) - 1)
+    raise AmbiguityHalt(f"line.{line.sku}", f"an Items row holding {line.sku}",
+                        [str(r) for r in rows[:5]] or ["the Items table is empty"],
+                        d.screenshot(f"halt-line-missing-{line.sku}"))
 
 
 def _line_cell(d: Driver, pane, row: int, column: str):
@@ -628,6 +676,11 @@ def _line_cell(d: Driver, pane, row: int, column: str):
 # --------------------------------------------------------------------------
 
 def stage4_save_order(d: Driver, o: OrderData) -> None:
+    # 4.1 -- final gate before saving: re-confirm the Debtor addresses against the
+    # source. Every Product line was checked against its own line price at 3.16 as
+    # it was entered, and the totals below re-prove the whole set.
+    _confirm_addresses(d, o)                                             # 4.1
+
     # 4.2 -- order-level Discount and Shipping stay at their defaults; this image
     # supplies no order-level values.
     _check_total(d, "order.total_net", o.net_total, "Total Net")        # 4.3
@@ -691,6 +744,11 @@ def _check_total(d: Driver, logical: str, expected: Decimal, label: str) -> None
 # --------------------------------------------------------------------------
 
 def stage5_invoice(d: Driver, o: OrderData) -> None:
+    # 4.5 left the Data > Documents list in front. The follow-up buttons live in the
+    # Order editor, and clicking one while that editor is in the background is a
+    # silent no-op -- the click reports success and no Invoice is ever created.
+    _focus_order(d, o.external_ref)
+
     # 4.6 -- the follow-up action, NOT the top toolbar Invoice button. Only the
     # follow-up preserves the Order relationship.
     d.click("order.followup_invoice")
@@ -715,9 +773,23 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
     if o.paid:                                                           # 5.3
         d.click("invoice.paid")
         time.sleep(1.0)   # ticking 'paid' re-lays out the row; resolve it again after
-        d.set_text("invoice.paid_date", o.payment_date.strftime("%b %d, %Y"))
+        # Value first, date last. Typing into the value field leaves the date
+        # widget's month segment reading '00' -- a correct 'Jul 18, 2026'
+        # became '00 18, 2026' purely from filling in the neighbouring field.
         d.set_text("invoice.paid_value", f"{o.gross_total:.2f}")
-        d.note(f"5.3 ok: paid, {o.payment_date}, {o.gross_total}")
+        d.set_date("invoice.paid_date", o.payment_date)
+
+        # Read all three back. This block used to print 'ok' from the values it
+        # had just tried to write, so the Invoice saved with today's date and the
+        # log still said 5.3 ok. Report what the Invoice holds, not what we meant.
+        got_date = d.read_date("invoice.paid_date")
+        got_value = _amount(d.read_text("invoice.paid_value"))
+        if got_date != o.payment_date or got_value != o.gross_total:
+            raise AmbiguityHalt("invoice.paid", f"{o.payment_date} / {o.gross_total}",
+                                [f"Invoice holds {got_date} / {got_value}",
+                                 f"date field reads {d.read_text('invoice.paid_date')!r}"],
+                                d.screenshot("halt-invoice-paid"))
+        d.note(f"5.3 ok: paid, {got_date}, {got_value} (read back from the Invoice)")
     else:
         d.note("5.3: not PAID -- leaving paid clear, inventing no date or value")
 
@@ -766,6 +838,10 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
     d.note(f"5.5 ok: Invoice {'paid' if o.paid else 'open'} at {o.gross_total}, "
            f"source Order still open at {o.gross_total}")
     d.screenshot("05-invoice-verified")
+    # 5.7 -- the flow ends here. No Delivery, Correction or Dunning document.
+    # 5.6 -- "reopen the Invoice only if needed". Not needed: 5.3 already reads the
+    # payment method, paid state, date and value back out of the open editor, and
+    # 5.5 re-reads the state and total from Data > Documents after the save.
     # 5.7 -- the flow ends here. No Delivery, Correction or Dunning document.
     d.note("stage 5 ok -- Invoice saved and verified; source Order still open")
 

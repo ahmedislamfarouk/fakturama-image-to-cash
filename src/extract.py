@@ -1,4 +1,4 @@
-"""Order image -> validated OrderData.
+"""Order image -> validated OrderData.  Spec steps 1.1 and 1.2.
 
 Pure: no GUI, no Windows, no Fakturama. Runs and is tested on any platform.
 

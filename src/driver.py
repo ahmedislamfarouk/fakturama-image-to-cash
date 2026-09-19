@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 try:  # pragma: no cover - platform split
@@ -46,6 +47,34 @@ def colkey(name: str) -> str:
     'Price' -> 'price'.
     """
     return "".join(ch for ch in str(name).lower() if ch.isalnum())
+
+
+def _digits(text: str) -> str:
+    """Just the digits, so '0' and '0%' and '$678.30' compare on their numbers."""
+    return "".join(ch for ch in str(text) if ch.isdigit())
+
+
+def _same_value(got: str, wanted) -> bool:
+    return str(got).strip() == str(wanted).strip()
+
+
+def _landed(got: str, wanted, el) -> bool:
+    """Did the value arrive, allowing for how Fakturama renders it?
+
+    Two shapes mean it did NOT arrive, and both were seen in real runs:
+    an empty field, and a field reading its own label -- read_text() falls back
+    to window_text(), which on an empty SWT Edit returns the control's Name.
+    """
+    got = str(got).strip()
+    if not got:
+        return False
+    try:
+        if got == (el.element_info.name or "").strip():
+            return False
+    except Exception:
+        pass
+    want_digits = _digits(wanted)
+    return _digits(got) == want_digits if want_digits else True
 
 
 def escape_keys(text: str) -> str:
@@ -341,6 +370,9 @@ class Driver:
     _main: object | None = None   # the Fakturama shell; dialogs are its children
     _grid_y: list = field(default_factory=list)   # row centres from the last grid read
     _log: list[str] = field(default_factory=list)
+    _t0: float = field(default_factory=time.monotonic)   # for the elapsed column
+    film: bool = False            # capture a frame after every click (--film)
+    _frame: int = 0
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -666,6 +698,54 @@ class Driver:
 
     # -- actions ------------------------------------------------------------
 
+    def click_for(self, click_logical: str, expect_logical: str, tries: int = 3):
+        """Click something whose whole purpose is to open an editor, and insist.
+
+        A single click here is a coin flip when the application is still busy.
+        'New Contact' pressed three seconds after the payment method was saved
+        did nothing at all, and the run died waiting for a Debtor editor that
+        was never going to appear -- on the machine, in the middle of a demo.
+
+        Same shape as open_tab: act, wait for the thing the act should produce,
+        and try again rather than time out on the first miss.
+        """
+        last = None
+        for attempt in range(1, tries + 1):
+            try:
+                self.click(click_logical)
+            except Exception as exc:
+                last = exc
+                self.note(f"{click_logical}: click failed ({type(exc).__name__})")
+            try:
+                self.wait_exists(expect_logical, timeout=max(6.0, self.timeout / tries))
+                return
+            except Exception as exc:
+                last = exc
+                self.note(f"{click_logical}: no {expect_logical} yet "
+                          f"(attempt {attempt}/{tries})")
+                self.scope_main()
+        raise TimeoutError(f"{click_logical}: clicked {tries}x, {expect_logical} never appeared"
+                           + (f" (last: {last})" if last else ""))
+
+    def snap(self, label: str) -> None:
+        """One numbered frame, for the storyboard. Off unless --film.
+
+        Screenshots taken at a halt show where it stopped; these show what it did.
+        Run with --film and tools/storyboard.py lays them out in order, which is
+        the closest thing to watching the automation without watching it.
+        """
+        if not self.film:
+            return
+        self._frame += 1
+        try:
+            d = self.shots.parent / "film"
+            d.mkdir(parents=True, exist_ok=True)
+            from PIL import ImageGrab
+            safe = "".join(c if c.isalnum() or c in "-_." else "-" for c in label)[:48]
+            ImageGrab.grab().save(d / f"{self._frame:03d}-{safe}.png")
+        except Exception:
+            pass
+
     def click(self, logical: str, scope=None):
         """SWT ignores synthetic clicks on an unfocused dialog -- focus first.
 
@@ -682,14 +762,40 @@ class Driver:
         except Exception:
             el.invoke()          # fall back to the UIA Invoke pattern
         self.note(f"click {logical}")
+        self.snap(f"click-{logical}")
         return el
 
-    def set_text(self, logical: str, value, scope=None):
-        el = self.find(logical, scope)
+    def _focus_field(self, el) -> None:
+        """Put the caret in THIS field before typing into it.
+
+        set_focus() alone is not enough: on SWT it raises a COMError as often as
+        not, and type_keys() then sends the keystrokes to whatever held focus
+        before. That is not a silent no-op -- it is a silent write into the wrong
+        control. Creating a Product typed the SKU into a field nobody had focused,
+        found it had not landed, retyped it with a click, and then typed the
+        product NAME with no click -- which went straight into the Item Number
+        field the click had just focused. The Product saved with its name as its
+        SKU, the picker could not find the SKU afterwards, and the Order billed
+        the previous product at the new product's price.
+
+        One click costs nothing and removes the whole class.
+        """
         try:
             el.set_focus()
         except Exception:
             pass
+        try:
+            el.click_input()
+        except Exception:
+            try:
+                r = el.rectangle()
+                raw_click((r.left + r.right) // 2, (r.top + r.bottom) // 2)
+            except Exception:
+                pass
+
+    def set_text(self, logical: str, value, scope=None):
+        el = self.find(logical, scope)
+        self._focus_field(el)
         if not hasattr(el, "set_edit_text"):
             # Some fields the spec describes as text are ComboBoxes in Fakturama
             # (Country, Net or Gross). Selecting is the right verb for those.
@@ -721,20 +827,156 @@ class Driver:
                 el.set_edit_text(str(value))
             except Exception:
                 raise
-        got = self.read_text(logical, scope)
-        if got.strip() != str(value).strip():
-            self.note(f"WARNING {logical}: wrote {value!r} but field reads {got!r}")
+        # Read back, and do not merely complain. A warning here used to be printed
+        # and ignored, which is how an entire Product got created with every field
+        # empty: each one logged "wrote 'MAT-DESK-02' but field reads 'Item Number'"
+        # -- the control's own LABEL, meaning nothing had been typed into it at all
+        # -- and the run carried on and reported the Product created.
+        #
+        # Most mismatches here are cosmetic: Fakturama renders '0' as '0%' and
+        # '678.30' as '$678.30'. So compare on the digits, and only treat it as a
+        # failure when the value genuinely did not arrive.
+        for attempt in (1, 2):
+            got = self.read_text(logical, scope, el=el)
+            if _same_value(got, value):
+                break
+            if not _landed(got, value, el):
+                self.note(f"{logical}: attempt {attempt} did not land "
+                          f"(field reads {got!r}); retyping")
+                if attempt == 2:
+                    raise AmbiguityHalt(logical, str(value),
+                                        [f"field still reads {got!r} after 2 attempts"],
+                                        self.screenshot(f"halt-set-{logical.replace('.', '-')}"))
+                el = self.find(logical, scope)
+                self._focus_field(el)
+                el.type_keys("^a{BACKSPACE}", with_spaces=True)
+                el.type_keys(escape_keys(value), with_spaces=True)
+                continue
+            self.note(f"note {logical}: wrote {value!r}, field renders it as {got!r}")
+            break
         self.note(f"set {logical} = {value!r}")
         return el
 
-    def read_text(self, logical: str, scope=None) -> str:
+    #: Display formats Fakturama's segmented date widget is known to render.
+    #: The order of the fields in the format IS the order the widget accepts
+    #: digits in, which is what set_date() relies on.
+    DATE_FORMATS = ("%b %d, %Y", "%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d")
+
+    def set_date(self, logical: str, value, scope=None):
+        """Write a date into an SWT CDateTime, then prove it took.
+
+        This is NOT an Edit with text in it. It is a segmented widget that
+        ignores every non-digit and feeds digits into whichever segment the
+        caret is in. So typing the rendered string is actively wrong: the
+        payment date 'Jul 18, 2026' put 'Sep 20, 0026' in the field -- the
+        letters were dropped and '18' '2026' landed in the wrong segments.
+        Nothing raised; the Invoice simply saved with today's date.
+
+        set_edit_text() does produce the right display, but it is a UIA
+        ValuePattern write and SWT's ModifyListener never fires -- the same
+        trap that saved the Debtor's Company as NULL (see set_text).
+
+        What works is what a human does: caret to the front, then the digits
+        in the order the widget displays them.
+        """
+        el = self.find(logical, scope)
+        shown = self.read_text(logical, scope)
+        digits = self._date_digits(value, shown)
+
+        for attempt in (1, 2, 3):
+            # Click the LEFT EDGE, not the centre. set_focus() on SWT raises a
+            # COMError as often as not, and a centre click lands the caret on
+            # whichever segment sits under the middle of the field -- which is
+            # the year here, so all eight digits piled into it and the field
+            # read 'Sep 19, 714'. {HOME} does not help: this widget steps
+            # between segments with the arrow keys, not Home/End. So: click at
+            # the left edge, then walk left to be certain, then type. Digits
+            # auto-advance to the next segment as each one fills.
+            r = el.rectangle()
+            y = (r.top + r.bottom) // 2
+            try:
+                el.click_input(coords=(6, y - r.top))
+            except Exception:
+                raw_click(r.left + 6, y)
+            el.type_keys("{LEFT 6}")
+            el.type_keys(digits)
+            got = self.read_text(logical, scope, el=el)
+            if self._parse_date(got) == value:
+                self.note(f"set {logical} = {value} (field reads {got!r})")
+                return el
+            self.note(f"{logical}: attempt {attempt} left {got!r}, wanted {value}")
+            el = self.find(logical, scope)
+            shown = got or shown
+            digits = self._date_digits(value, shown)
+
+        raise AmbiguityHalt(logical, str(value), [f"field reads {self.read_text(logical, scope)!r}"],
+                            self.screenshot(f"halt-date-{logical.replace('.', '-')}"))
+
+    def read_date(self, logical: str, tries: int = 4, scope=None):
+        """The date a widget actually holds, or None if it stays unreadable.
+
+        Worth retrying: typing into a neighbouring field re-lays out the row,
+        and for a moment the date widget's Value pattern comes back empty even
+        though the date is still there. A single read turned a correct
+        'Jul 18, 2026' into None and failed the run.
+        """
+        for attempt in range(tries):
+            got = self._parse_date(self.read_text(logical, scope))
+            if got is not None:
+                return got
+            if attempt < tries - 1:
+                time.sleep(0.5)
+        return None
+
+    @classmethod
+    def _date_format(cls, shown: str) -> str:
+        for fmt in cls.DATE_FORMATS:
+            try:
+                datetime.strptime(shown, fmt)
+                return fmt
+            except ValueError:
+                continue
+        return cls.DATE_FORMATS[0]
+
+    @classmethod
+    def _date_digits(cls, value, shown: str) -> str:
+        """The keystrokes for `value`, in the segment order `shown` is rendered in.
+
+        The month segment renders as 'Jul' but is typed as '07', so the digits
+        cannot come from the rendered string -- they come from the numeric
+        equivalent of its format. Getting this backwards drops the month
+        entirely and shifts every remaining digit one segment left.
+        """
+        fmt = cls._date_format(shown).replace("%b", "%m").replace("%B", "%m")
+        return "".join(ch for ch in value.strftime(fmt) if ch.isdigit())
+
+    @classmethod
+    def _parse_date(cls, shown: str):
+        for fmt in cls.DATE_FORMATS:
+            try:
+                return datetime.strptime(shown.strip(), fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    def read_text(self, logical: str, scope=None, el=None) -> str:
         """An Edit's CONTENT, not its label.
 
         window_text() on a UIA Edit returns its Name (e.g. 'Cust.Ref.'), so every
         postcondition that compared a typed value against it timed out. The Value
         pattern is what holds the text the user sees.
+
+        `el` reuses a handle the caller already resolved. Resolution walks the
+        descendants of an Eclipse window holding well over a thousand controls and
+        is the single most expensive thing this driver does -- measured at 30% of a
+        run. set_text() resolved the control and then called this, which resolved
+        the very same control a second time, for every field written.
+
+        Only ever pass a handle from the same operation. A cached handle that
+        outlives its editor is how you get a fast wrong answer, and this codebase
+        has produced enough silent wrong answers already.
         """
-        el = self.find(logical, scope)
+        el = el if el is not None else self.find(logical, scope)
         for getter in ("get_value", "window_text"):
             try:
                 v = getattr(el, getter)()
@@ -778,11 +1020,16 @@ class Driver:
             seen = [(it.element_info.name or "") for it in items][:10]
             raise AmbiguityHalt(logical, value, seen or ["<no items readable>"])
         chosen = hits[0]
+        # Click, do not call select(). ListItem.select() is a UIA pattern call, and
+        # on SWT a pattern call updates the widget without firing the listener the
+        # application binds to -- the same trap as SetValue on an Edit. The payment
+        # method saved with code 'Mutually defined' while the log said 'Credit
+        # transfer'. A synthesised click fires it; the pattern call is the fallback.
         try:
-            chosen.select()
-        except Exception:
             chosen.click_input()
-        self.note(f"select {logical} -> {chosen.element_info.name!r} (padded text)")
+        except Exception:
+            chosen.select()
+        self.note(f"select {logical} -> {chosen.element_info.name!r} (padded text, clicked)")
         return el
 
     # -- waiting: observed state, never sleep -------------------------------
@@ -1237,8 +1484,12 @@ class Driver:
         which would kill the automation over a log line.
         """
         self._log.append(msg)
+        # Elapsed seconds on every line. A run takes minutes and the question
+        # "where does the time actually go" should be answerable from the log a
+        # run already produces, not from a stopwatch and a guess.
+        t = time.monotonic() - getattr(self, "_t0", time.monotonic())
         try:
-            print(f"  . {msg}", flush=True)
+            print(f"  {t:6.1f}s . {msg}", flush=True)
         except UnicodeEncodeError:
             safe = msg.encode("ascii", "replace").decode("ascii")
-            print(f"  . {safe}", flush=True)
+            print(f"  {t:6.1f}s . {safe}", flush=True)
