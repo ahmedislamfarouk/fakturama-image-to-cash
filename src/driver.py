@@ -36,6 +36,18 @@ except ImportError:  # Linux / CI
 _TYPE_KEYS_SPECIAL = "^+%~(){}[]"
 
 
+def colkey(name: str) -> str:
+    """Normalize a column header for matching.
+
+    OCR is exact about geometry but not about punctuation: the same header comes back
+    as 'Qty.' on one read and 'Qty' on the next, 'Item No.' as 'Item No', 'Pos.' as
+    'Po5.'. Matching on letters and digits only makes the lookup stable without
+    becoming a fuzzy match -- 'U.Price' -> 'uprice' still cannot collide with
+    'Price' -> 'price'.
+    """
+    return "".join(ch for ch in str(name).lower() if ch.isalnum())
+
+
 def escape_keys(text: str) -> str:
     return "".join("{" + c + "}" if c in _TYPE_KEYS_SPECIAL else c for c in str(text))
 
@@ -70,6 +82,7 @@ class Selector:
     discriminator: str | None = None # T3: substring expected in tooltip/help_text
     same_row: bool = False           # T2b: pick from controls on the anchor label's row
     within: bool = False             # T2c: search INSIDE the anchor, not its parent
+    pick: str = ""                   # "first"/"last" by screen order, when duplicates are expected
     describe: str = ""               # T4: what the LLM should look for
 
 
@@ -149,8 +162,9 @@ SELECTORS: dict[str, Selector] = {
     "debtor.role_delivery": Selector("CheckBox", name="Delivery address"),
     # The editor tabs across the top of the shell. Fakturama marks unsaved editors
     # with a leading '*', so a freshly opened Debtor is '*New Debtor'.
-    "debtor.editor_tab":    Selector("TabItem", name="*New Debtor"),
-    "order.editor_tab":     Selector("TabItem", name="*New Order"),
+    "debtor.editor_tab":    Selector("TabItem", name="*New Debtor", pick="first"),
+    "order.editor_tab":     Selector("TabItem", name="*New Order", pick="first"),
+    "invoice.editor_tab":   Selector("TabItem", name="*New Invoice", pick="first"),
     "debtor.tab_misc":      Selector("TabItem", name="Miscellaneous"),
     "debtor.alias":         Selector("Edit", name="Alias name"),
     "debtor.discount":      Selector("Edit", name="Discount"),
@@ -167,7 +181,9 @@ SELECTORS: dict[str, Selector] = {
     # VERIFIED: the spec's "green + control at the upper-right of the list" is a
     # properly NAMED Button, one per list view -- no anchor walk needed.
     "payment.add":          Selector("Button", name="Create a new term of payment"),
-    "vat.add":              Selector("Button", name="Create a new VAT"),
+    # VERIFIED: Fakturama labels the VAT list's add button 'Create a new tax rate',
+    # not 'VAT' -- the view is called VATs but the control is not.
+    "vat.add":              Selector("Button", name="Create a new tax rate"),
     "list.search":          Selector("Edit", anchor="address_dlg.searchlbl", index=0, same_row=True),
     "payment.name":         Selector("Edit", name="Name"),
     "payment.description":  Selector("Edit", name="Description"),
@@ -184,7 +200,8 @@ SELECTORS: dict[str, Selector] = {
     "menu.vats":            Selector("Text", name="VATs"),
     "vat.name":             Selector("Edit", name="Name"),
     "vat.description":      Selector("Edit", name="Description"),
-    "vat.code":             Selector("ComboBox", name="VAT code"),
+    # VERIFIED: the full label, exactly as the spec writes it in 3.5/3.6.
+    "vat.code":             Selector("ComboBox", name="VAT code (E-Invoice)"),
     "vat.value":            Selector("Edit", name="Value"),
 
     "order.items":          Selector("Text", name="Items"),
@@ -194,14 +211,26 @@ SELECTORS: dict[str, Selector] = {
     "product_dlg.search":   Selector("Edit", anchor="address_dlg.searchlbl", index=0, same_row=True),
     "product_dlg.ok":       Selector("Button", name="OK"),
     "product_dlg.cancel":   Selector("Button", name="Cancel"),
-    "new.product":          Selector("Button", name="Create a new product"),
+    # 'Create a new product' exists TWICE (main toolbar and the Products list view),
+    # which is an ambiguity halt waiting to happen. The left New panel's entry is
+    # unique and is what the spec calls 'New product'.
+    "new.product":          Selector("Text", name="New product"),
     "product.itemno":       Selector("Edit", name="Item Number"),
     "product.name":         Selector("Edit", name="Name"),
     "product.description":  Selector("Edit", name="Description"),
-    "product.price_gross":  Selector("Edit", name="Price"),
-    "product.cost_price":   Selector("Edit", name="cost price"),
-    "product.vat":          Selector("ComboBox", name="VAT"),
-    "product.stock":        Selector("Edit", name="Stock"),
+    # VERIFIED: 'Price (gross)', 'cost price (net)' and 'Stock' are Text labels with
+    # UNNAMED Edits beside them -- resolved on the label's row, left to right.
+    "product.price_label":  Selector("Text", name="Price (gross)"),
+    "product.price_gross":  Selector("Edit", anchor="product.price_label", index=0, same_row=True),
+    "product.cost_label":   Selector("Text", name="cost price (net)"),
+    "product.cost_price":   Selector("Edit", anchor="product.cost_label", index=0, same_row=True),
+    # 'VAT' as a Text is ambiguous even inside the Product editor -- the ComboBox
+    # carries its own display Text of the same name. Anchor on the unique
+    # 'cost price (net)' label instead: the editor's ComboBoxes are Category then
+    # VAT in tree order, so the VAT one is index 1.
+    "product.vat":          Selector("ComboBox", anchor="product.cost_label", index=1),
+    "product.stock_label":  Selector("Text", name="Stock"),
+    "product.stock":        Selector("Edit", anchor="product.stock_label", index=0, same_row=True),
 
     # --- item line fields (resolved within the Items row, see flow._complete_line) --
     "order.qty":            Selector("Edit", name="Qty."),
@@ -211,21 +240,41 @@ SELECTORS: dict[str, Selector] = {
     "order.line_price":     Selector("Edit", name="Price"),
 
     # --- order totals (4.3) -------------------------------------------------
-    "order.total_net":      Selector("Edit", name="Total Gross"),   # label depends on price mode
+    # The label follows the document price mode: 'Total Net' in Net mode (1.7),
+    # 'Total Gross' in Gross mode. Both are resolved; the flow reads whichever exists.
+    "order.total_net":      Selector("Edit", name="Total Net"),
+    "order.total_gross":    Selector("Edit", name="Total Gross"),
     "order.total_vat":      Selector("Edit", name="VAT"),
     "order.total":          Selector("Edit", name="Total"),
 
     # --- stages 4 and 5 -----------------------------------------------------
     "menu.documents":       Selector("Text", name="Documents"),
+    # The Documents list view's own toolbar button, used to scope grid reads to that
+    # view rather than to whatever else is open.
+    "documents.add":        Selector("Button", name="Create: Order"),
+    # 4.6 -- MUST be the Invoice button INSIDE the 'Create a follow-up document'
+    # group; only the follow-up action preserves the Order relationship. Without
+    # within=True this searches the group's PARENT and can match the top toolbar's
+    # Invoice button, which the spec explicitly forbids -- and which silently opened
+    # nothing here, leaving the Order in front with no Invoice tab.
     "order.followup_invoice": Selector("Button", name="Invoice",
-                                      anchor="order.followup", index=0,
+                                      anchor="order.followup", within=True, index=0,
                                       describe="'Invoice' inside the saved Order's 'Create a "
                                                "follow-up document' area -- NOT the top toolbar Invoice"),
     "order.followup":       Selector("Group", name="Create a follow-up document"),
-    "invoice.payment":      Selector("ComboBox", name="Payment"),
+    # VERIFIED in the linked Invoice editor: 'paid' is the ONLY CheckBox in the whole
+    # application, and the payment row sits alongside it -- the payment-method
+    # ComboBox and the date/value Edits are all UNNAMED, so they are resolved on the
+    # checkbox's row, left to right. Ticking 'paid' re-lays out that row, which is why
+    # the fields are resolved again after ticking rather than cached.
     "invoice.paid":         Selector("CheckBox", name="paid"),
-    "invoice.paid_date":    Selector("Edit", name="payment date"),
-    "invoice.paid_value":   Selector("Edit", name="Value"),
+    "invoice.payment":      Selector("ComboBox", anchor="invoice.paid", index=0, same_row=True),
+    "invoice.paid_date":    Selector("Edit", anchor="invoice.paid", index=0, same_row=True),
+    "invoice.paid_value":   Selector("Edit", anchor="invoice.paid", index=1, same_row=True),
+    # The Invoice's own totals (5.1): named, unlike the payment row.
+    "invoice.total_net":    Selector("Edit", name="Total Net"),
+    "invoice.vat":          Selector("Edit", name="VAT"),
+    "invoice.total":        Selector("Edit", name="Total"),
 }
 
 
@@ -284,11 +333,24 @@ class Driver:
         main = self._main or self._scope
         if main is not None:
             try:
-                for c in main.descendants(control_type="Window"):
-                    if pat.search(c.element_info.name or ""):
-                        self._scope = c
-                        self.note(f"scope -> child window {c.element_info.name!r}")
-                        return c
+                matches = [c for c in main.descendants(control_type="Window")
+                           if pat.search(c.element_info.name or "")]
+                # A cancelled dialog can linger in the tree with no children, and
+                # binding to it makes every lookup inside "the dialog" fail even
+                # though the real one is open. Prefer a visible window that actually
+                # has contents, newest last.
+                def usable(c):
+                    try:
+                        return bool(c.is_visible()) and bool(c.children())
+                    except Exception:
+                        return False
+                live = [c for c in matches if usable(c)]
+                chosen = (live or matches)[-1] if (live or matches) else None
+                if chosen is not None:
+                    self._scope = chosen
+                    self.note(f"scope -> child window {chosen.element_info.name!r}"
+                              f"{'' if live else ' (no live candidate; using last)'}")
+                    return chosen
             except Exception:
                 pass
 
@@ -347,6 +409,67 @@ class Driver:
                 self.note(f"{tab_logical}: not switched (attempt {attempt}/{tries})")
         raise LookupError(f"{tab_logical}: could not switch (never saw {expect_logical})")
 
+    def retry(self, fn, what: str, tries: int = 5, delay: float = 1.0):
+        """Run an action that may race a rebuilding dialog.
+
+        Waiting for a control to exist is not sufficient: SWT dialogs replace their
+        contents while loading, so a control can resolve on two consecutive polls and
+        be gone 0.25s later, when the action runs. Observed repeatedly on the product
+        picker's search box. Retrying the ACTION -- not just the lookup -- is what
+        actually survives the churn.
+        """
+        last = None
+        for attempt in range(1, tries + 1):
+            try:
+                return fn()
+            except Exception as exc:
+                last = exc
+                self.note(f"{what}: attempt {attempt}/{tries} failed ({type(exc).__name__})")
+                if attempt == tries:
+                    self.describe_scope(what)
+                time.sleep(delay)
+        raise last
+
+    def describe_scope(self, what: str = "") -> None:
+        """Log what the current scope actually contains.
+
+        A LookupError says a control was not found; it does not say where we were
+        looking. When an action fails repeatedly, print the scope's identity and its
+        visible labels so the next fix is based on evidence instead of a theory.
+        """
+        sc = self._scope
+        try:
+            i = sc.element_info
+            self.note(f"scope is {i.control_type} {i.name!r} {i.rectangle}")
+        except Exception as exc:
+            self.note(f"scope unreadable: {type(exc).__name__}")
+            return
+        for kind in ("Text", "Edit", "Button"):
+            try:
+                names = [(e.element_info.name or "").strip()
+                         for e in sc.descendants(control_type=kind)]
+                names = [n for n in names if n][:8]
+                self.note(f"  {kind}: {names}")
+            except Exception as exc:
+                self.note(f"  {kind}: unreadable ({type(exc).__name__})")
+        try:
+            wins = [(w.element_info.name, w.element_info.rectangle)
+                    for w in (self._main or sc).descendants(control_type="Window")]
+            self.note(f"  open child windows: {wins[:6]}")
+        except Exception:
+            pass
+
+    def dialog_open(self, title_re: str) -> bool:
+        """Is a dialog matching this title currently open?"""
+        import re as _re
+        pat = _re.compile(title_re)
+        root = self._main or self._scope
+        try:
+            return any(pat.search(w.element_info.name or "")
+                       for w in root.descendants(control_type="Window"))
+        except Exception:
+            return False
+
     def scope_main(self):
         """Return scope to the Fakturama shell (the still-open Order tab).
 
@@ -371,6 +494,16 @@ class Driver:
         cands = self._t2(sel, root) if sel.anchor else self._t1(sel, root)
         if len(cands) > 1 and sel.discriminator:
             cands = self._t3(sel, cands) or cands
+        if len(cands) > 1 and sel.pick:
+            # Some controls legitimately appear more than once and screen order picks
+            # the right one deterministically. Fakturama can end up with two
+            # '*New Order' editor tabs; the one 1.8 says to keep open is the first
+            # opened, i.e. the leftmost.
+            ordered = sorted(cands, key=lambda c: (c.element_info.rectangle.top,
+                                                   c.element_info.rectangle.left))
+            chosen = ordered[0] if sel.pick == "first" else ordered[-1]
+            self.note(f"{logical}: {len(cands)} candidates, taking {sel.pick} by screen order")
+            return chosen
         if len(cands) == 1:
             return cands[0]
         if not cands:
@@ -414,6 +547,15 @@ class Driver:
             matches = container.descendants(control_type=sel.control_type)
         except Exception:
             return []
+
+        # An anchored selector may ALSO carry a name. Honour it: the follow-up group
+        # holds Confirmation, Invoice, Delivery and Proforma, and taking index 0
+        # while ignoring name="Invoice" resolved to Confirmation -- which would have
+        # created the wrong document type entirely (4.6).
+        if sel.name:
+            named = [m for m in matches if (m.element_info.name or "") == sel.name]
+            if named:
+                matches = named
 
         if sel.same_row:
             # Fakturama labels two fields with one Text ('First Name Last Name',
@@ -610,8 +752,27 @@ class Driver:
             time.sleep(self.poll)
         raise TimeoutError(f"timed out waiting for {what}" + (f" (last error: {last})" if last else ""))
 
-    def wait_exists(self, logical: str, timeout: float | None = None):
-        return self.wait_until(lambda: bool(self.find(logical)), f"{logical} to exist", timeout)
+    def wait_exists(self, logical: str, timeout: float | None = None, stable: int = 2):
+        """Wait until a control exists -- and keeps existing.
+
+        A dialog rebuilds its widgets while it populates, so a control can resolve on
+        one poll and be gone on the next: observed with the product picker's search
+        box, where wait_exists() passed and the very next lookup raised. Requiring N
+        consecutive successful resolutions means we act on a settled tree.
+        """
+        streak = 0
+
+        def present():
+            nonlocal streak
+            try:
+                self.find(logical)
+            except Exception:
+                streak = 0
+                return False
+            streak += 1
+            return streak >= stable
+
+        return self.wait_until(present, f"{logical} to exist and settle", timeout)
 
     def wait_value(self, logical: str, expected: str, timeout: float | None = None):
         return self.wait_until(
@@ -671,6 +832,132 @@ class Driver:
                     self.note(f"list view scope via {near_logical}")
                     return node
         return self._scope
+
+    def editor_scope(self, near_logical: str, min_edits: int = 3):
+        """The editor form containing `near_logical`, as a scope for its other fields.
+
+        Fakturama keeps several editors open at once, and their labels collide: while
+        a New Product editor is open the Order editor is too, so Text 'VAT' matches
+        twice and resolution correctly halts as ambiguous. Walking up from a control
+        unique to this editor gives a scope in which its own labels are unique again.
+        """
+        node = self.find(near_logical)
+        for _ in range(8):
+            node = node.parent()
+            if node is None:
+                break
+            try:
+                if len(node.descendants(control_type="Edit")) >= min_edits:
+                    self.note(f"editor scope via {near_logical}")
+                    return node
+            except Exception:
+                continue
+        return self._scope
+
+    def items_pane(self):
+        """The Order's Items table: the big Pane to the right of the 'Items' label.
+
+        It exposes nothing to UIA -- no rows, no cells -- so it is located by tree
+        geometry relative to the label that names it, then read and written through
+        pixels. Anchoring this way keeps it distinct from every other grid in the
+        shell, which is what grid_pane() gets wrong when several views are open.
+        """
+        anchor = self.find("order.items")
+        a = anchor.element_info.rectangle
+        root = anchor.parent().parent() or self._scope
+        best, best_area = None, 0
+        for p in root.descendants(control_type="Pane"):
+            r = p.element_info.rectangle
+            if abs(r.top - a.top) > 14 or r.left < a.right:
+                continue
+            area = (r.right - r.left) * (r.bottom - r.top)
+            if area > best_area:
+                best, best_area = p, area
+        if best is None:
+            raise LookupError("Items table pane not found beside the 'Items' label")
+        return best
+
+    def edit_cell(self, pane, column: str, row_index: int, value, commit: str = "{ENTER}"):
+        """Set one cell of a table that exposes no cells.
+
+        A SINGLE click on the cell makes Fakturama create a real inline editor -- an
+        unnamed Edit appearing inside the table's rectangle -- so the value goes into
+        an actual UIA control rather than being typed blind at the pane. (Typing at
+        the pane only selected the row: Qty. stayed 1.00 and the line price never
+        recalculated.)
+
+        The cell's position comes from OCR-measured column spans and row centres, as
+        percentages of the pane, and the click is relative to the pane element's own
+        rectangle -- nothing absolute is stored.
+        """
+        from src import ocr
+        from src.vision import read_layout as _vision_layout
+
+        shot = self.shots / "_items.png"
+        self.shots.mkdir(parents=True, exist_ok=True)
+        pane.capture_as_image().save(shot)
+        layout = ocr.read_layout(shot) if ocr.available() else _vision_layout(shot)
+        if not layout.get("columns"):
+            layout = _vision_layout(shot)
+
+        cols = {colkey(c.get("name", "")): c for c in layout.get("columns", [])}
+        col = cols.get(colkey(column))
+        if col is None:
+            raise AmbiguityHalt("items.column", column,
+                                [c.get("name", "") for c in layout.get("columns", [])],
+                                self.screenshot("halt-items-column"))
+        rows = layout.get("rows", [])
+        if row_index >= len(rows):
+            raise AmbiguityHalt("items.row", f"row {row_index}",
+                                [str(r.get("cells")) for r in rows][:5],
+                                self.screenshot("halt-items-row"))
+
+        r = pane.element_info.rectangle
+        w, h = r.right - r.left, r.bottom - r.top
+        x = max(2, min(w - 3, int(w * float(col["x_pct"]) / 100.0)))
+        y = max(2, min(h - 3, int(h * float(rows[row_index]["y_pct"]) / 100.0)))
+
+        def inline_editors():
+            found = []
+            for e in (self._main or self._scope).descendants(control_type="Edit"):
+                er = e.element_info.rectangle
+                if r.left <= er.left <= r.right and r.top <= er.top <= r.bottom:
+                    found.append(e)
+            return found
+
+        # One click on an ALREADY-selected row opens its editor; on an unselected row
+        # the first click only selects it. Row 0 worked with a single click because the
+        # picker had just selected it, while row 1 needed selecting first. So: click,
+        # and if no editor appears, click again.
+        editor = None
+        for attempt in (1, 2, 3):
+            pane.click_input(coords=(x, y))
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                es = inline_editors()
+                if es:
+                    editor = es[-1]
+                    break
+                time.sleep(0.2)
+            if editor is not None:
+                if attempt > 1:
+                    self.note(f"items: editor opened on click {attempt}")
+                break
+        if editor is None:
+            raise AmbiguityHalt("items.editor", column,
+                                ["no inline editor appeared after three clicks on the cell"],
+                                self.screenshot("halt-items-editor"))
+
+        try:
+            editor.set_focus()
+        except Exception:
+            pass
+        editor.type_keys("^a{BACKSPACE}", with_spaces=True)
+        editor.type_keys(escape_keys(value), with_spaces=True)
+        editor.type_keys(commit)
+        time.sleep(0.5)
+        self.note(f"items: {column} row {row_index} = {value!r} "
+                  f"(cell {col['x_pct']:.1f}%, {rows[row_index]['y_pct']:.1f}%)")
 
     def grid_pane(self, scope=None):
         """The results grid inside a selector dialog: the largest childless Pane.

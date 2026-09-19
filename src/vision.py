@@ -219,3 +219,37 @@ def read_table(shot: Path) -> dict:
 
     _TABLE_CACHE[digest] = table
     return table
+
+
+LAYOUT_PROMPT = """This image is one table from a desktop application.
+
+Return ONLY a JSON object, no prose and no markdown fence:
+{"columns": [{"name": "Qty.", "x_pct": 12.5}, ...],
+ "rows": [{"y_pct": 18.0, "cells": ["...", "..."]}, ...]}
+
+- "columns" is every header cell, left to right. "x_pct" is the HORIZONTAL CENTRE of
+  that column as a percentage (0-100) of the image width.
+- "rows" is every DATA row (never the header). "y_pct" is the VERTICAL CENTRE of the
+  row as a percentage (0-100) of the image height. "cells" are its values in column
+  order, "" where empty.
+- Ignore blank filler rows below the data.
+- Be precise with x_pct and y_pct: they are used to click individual cells.
+"""
+
+
+def read_layout(shot: Path) -> dict:
+    """Column centres and row centres, for clicking a specific CELL.
+
+    read_table() is enough to decide whether a row matches; editing a line item needs
+    to reach one cell, so the column geometry has to come back too. Everything is a
+    percentage of the captured element, so it stays relative to a rectangle UIA gave
+    us at runtime.
+    """
+    raw = shot.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest() + ":layout"
+    if digest in _TABLE_CACHE:
+        return _TABLE_CACHE[digest]
+    text = ask_vision(LAYOUT_PROMPT, raw)
+    layout = json.loads(text[text.index("{"): text.rindex("}") + 1])
+    _TABLE_CACHE[digest] = layout
+    return layout

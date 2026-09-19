@@ -83,7 +83,18 @@ def main() -> None:
     bad.paid = False
     assert any("not PAID" in e for e in validate(bad))
 
-    print("ok - 11 checks passed")
+    # Grid cells come from pixels and Fakturama truncates them to column width, so
+    # the exact-match rule has to cope with an elided tail without going fuzzy.
+    from src.flow import _exact, _cell_matches
+    want = ["Northstar Office GmbH", "Marta", "Klein", "10117", "Berlin"]
+    shown = [["1", "CUST000001", "Marta", "Klein", "Northstar Office ...", "10117", "Berlin", "", ""]]
+    assert _exact(shown, want) == [0]
+    assert _exact([["2", "CUST000002", "Jan", "Weber", "Southstar ...", "20095", "Hamburg"]], want) == []
+    assert _cell_matches("Northstar Office ...", "Northstar Office GmbH")
+    assert not _cell_matches("Northstar Office AG", "Northstar Office GmbH")
+    assert not _cell_matches("", "Northstar Office GmbH")
+
+    print("ok - 16 checks passed")
 
 
 if __name__ == "__main__":
