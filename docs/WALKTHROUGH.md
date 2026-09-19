@@ -357,17 +357,9 @@ Two things must be true first:
 ```bash
 virsh --connect qemu:///system start fakturama-win11
 virt-viewer --connect qemu:///system fakturama-win11    # then log in
-```
-
-Inside Windows:
-
-```
+```Inside Windows:```
 python -m src.run input\order.png
-```
-
-~8 minutes, ending:
-
-```
+```~8 minutes, ending:```
 done -- Order and linked Invoice saved and verified (WEB-2026-0714-A17, 678.30 EUR)
 ```
 
@@ -403,9 +395,7 @@ screenshots.
 
 Three consecutive clean-database runs on current code, all ending:
 
-```
-done -- Order and linked Invoice saved and verified (WEB-2026-0714-A17, 678.30 EUR)
-```
+```done -- Order and linked Invoice saved and verified (WEB-2026-0714-A17, 678.30 EUR)```
 
 | Term | Means |
 |---|---|

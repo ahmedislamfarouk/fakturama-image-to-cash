@@ -58,9 +58,7 @@ Each frame is annotated. The control that was just clicked keeps its full bright
 inside a red box while everything else dims, and the bar underneath names the frame, the
 spec step, the control and what it was for:
 
-```
-07   2.5   new.contact   -- create the Debtor                              82s
-```
+```07   2.5   new.contact   -- create the Debtor                              82s```
 
 The highlight is not guesswork: the driver records the element's own UIA rectangle
 beside each frame in `frames.json`, because a screenshot of a window holding a thousand
@@ -84,9 +82,7 @@ step number and control name underneath.
 ```
 python -m src.run input/order.png --record
 python3 tools/video.py
-```
-
-`docs/recording-realtime.mp4` is the same frames at 1x -- 260 seconds, pauses left in --
+````docs/recording-realtime.mp4` is the same frames at 1x -- 260 seconds, pauses left in --
 for working out where the time goes rather than for showing the flow. The breakdown is
 in [`../TIMING.md`](../TIMING.md).
 
