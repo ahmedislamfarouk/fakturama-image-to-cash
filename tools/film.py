@@ -39,7 +39,7 @@ STEP = {
     "toolbar.order": "1.3", "order.editor_tab": "1.8", "address_picker.open": "2.2",
     "address_dlg.cancel": "2.3", "address_dlg.ok": "2.10.2", "menu.payments": "2.10.1",
     "payment.add": "2.10.2", "new.contact": "2.5", "debtor.tab_addresses": "2.7",
-    "debtor.add_address": "2.8", "debtor.tab_misc": "2.9", "order.save": "2.10.6",
+    "debtor.add_address": "2.8", "debtor.tab_misc": "2.9",
     "product_picker.open": "3.2", "product_dlg.cancel": "3.3", "product_dlg.ok": "3.12",
     "menu.vats": "3.4", "vat.add": "3.5", "new.product": "3.7",
     "menu.documents": "4.5", "order.followup_invoice": "4.6",
@@ -72,6 +72,37 @@ WHAT = {
 }
 
 
+
+#: The toolbar Save is the same control at 2.10.6, 3.11, 4.4 and 5.4, so the step
+#: it belongs to has to come from its neighbours. What follows it settles the two
+#: that matter: a Save followed by Data > Documents is the stage-4 or stage-5
+#: save, and what precedes it settles the rest.
+SAVE_AFTER = [("5.", "5.4"), ("4.", "4.4"), ("3.", "3.11"), ("2.", "2.10.6")]
+
+
+def steps_for(controls: list[str]) -> list[str]:
+    """Label a whole run at once, so Save can see both neighbours."""
+    out, prev, seen_stage4 = [], "", False
+    for i, logical in enumerate(controls):
+        if logical == "order.save":
+            nxt = controls[i + 1] if i + 1 < len(controls) else ""
+            if nxt == "menu.documents":
+                step = "5.4" if seen_stage4 else "4.4"
+                seen_stage4 = True
+            else:
+                step = next((s for p, s in SAVE_AFTER if prev.startswith(p)), "2.10.6")
+        else:
+            step = STEP.get(logical, "")
+        out.append(step)
+        prev = step or prev
+    return out
+
+
+def step_for(logical: str, previous: str) -> str:
+    if logical != "order.save":
+        return STEP.get(logical, "")
+    return next((s for p, s in SAVE_AFTER if previous.startswith(p)), "2.10.6")
+
 def font(size: int, bold: bool = False):
     name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
     try:
@@ -80,7 +111,7 @@ def font(size: int, bold: bool = False):
         return ImageFont.load_default()
 
 
-def annotate(frame: dict) -> Path | None:
+def annotate(frame: dict, previous: str = "") -> Path | None:
     src = FILM / frame["file"]
     if not src.exists():
         return None
@@ -88,7 +119,7 @@ def annotate(frame: dict) -> Path | None:
     W, H = im.size
 
     logical = frame["label"].replace("click-", "")
-    step = STEP.get(logical, "")
+    step = step_for(logical, previous)
     what = WHAT.get(logical, "")
     rect = frame.get("rect")
 
@@ -136,7 +167,12 @@ def main() -> None:
         print("no docs/film/frames.json -- run:  python -m src.run input/order.png --film")
         return
     frames = json.loads(man.read_text())
-    done = [f for f in frames if annotate(f)]
+    done, prev = [], ""
+    for f in frames:
+        step = step_for(f["label"].replace("click-", ""), prev)
+        if annotate(f, prev):
+            done.append(f)
+        prev = step or prev
     total = sum((FILM / f["file"]).stat().st_size for f in done)
     print(f"annotated {len(done)} frames  ({total / 1048576:.1f}MB)")
 

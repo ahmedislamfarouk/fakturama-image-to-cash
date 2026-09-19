@@ -99,6 +99,18 @@ annotated frames come to 2.1MB, against 4.6MB raw. An earlier pass halved them t
 a megabyte and made the text unreadable, which is the wrong trade for the one artefact
 whose whole job is to be looked at.
 
+### One deliberate reordering
+
+The film follows the spec's order with a single exception, and it is in the code with
+its reason: the payment method is looked up and created **before** the Debtor editor
+opens, not at 2.10 inside it.
+
+Fakturama fills the Debtor's Payment dropdown when that editor opens and never
+refreshes it, so a payment method created while it is open is invisible to it --
+verified: the combo still offered only `Pay Cash` after `Bank Transfer` had been saved.
+The spec's ordering cannot work in 2.2.0. The rule it exists to enforce -- create master
+data only when an exact match is unavailable -- is unchanged.
+
 ### Coverage
 
 **34 of the 57 numbered steps have a callout.** The remaining 23 are steps whose only
