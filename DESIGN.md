@@ -148,22 +148,58 @@ Friedrichstrasse 88, 10117 Berlin; delivery is Northstar Office Warehouse, Beuss
 10553 Berlin. An implementation that takes the shortcut unconditionally produces the wrong
 Debtor. The comparison is made on normalized address fields, not assumed either way.
 
-### Addendum: what the live application changed
+### Addendum: what the live application actually turned out to be
 
-Two things only became visible once this ran against Fakturama 2.2.0, and both
-strengthened rather than weakened the tiering above.
+Everything below was found by running against Fakturama 2.2.0, not by reading the
+spec. Each one changed the implementation; several produced *wrong data* rather than
+an error, which is the reason screenshots and database checks are part of the loop.
 
 **The picker icons have no name.** The controls beside `Addresses` are unnamed `Image`
-elements sharing a Pane with the label, distinguished only by tree order (which matches
-vertical order). "The upper icon, not the lower green +" has no name-based or id-based
-expression at all -- T2 is not a convenience here, it is the only option.
+elements sharing a Pane with the label, distinguished only by tree order. "The upper
+icon, not the lower green +" has no name-based or id-based expression at all, so T2 is
+not a convenience here -- it is the only option.
 
 **The result grids are invisible to UIA.** SWT custom-paints them: the selector dialogs
-contain no `Table`, `DataGrid`, `List` or `Custom` element. So reading candidate rows --
-the input to every exact-match decision in the spec -- cannot come from the accessibility
-tree. It comes from the grid element's own UIA rectangle, captured and read by the same
-vision model that reads the order image. This is the T4 principle applied to content
-rather than control choice: UIA says *where*, the model says *what*.
+and the Items table contain no `Table`, `DataGrid`, `List` or `Custom` element. Reading
+candidate rows -- the input to every exact-match decision in the spec -- cannot come
+from the accessibility tree.
+
+**...but their editors are not.** A single click on a cell makes Fakturama create a real
+inline `Edit`, so values go into a proper UIA control rather than blind keystrokes. An
+unselected row needs one click to select and a second to edit.
+
+**Measure geometry, infer content.** Asking a vision model for a column's centre
+returned estimates that drifted 12-15 points between reads of the same table -- enough
+to type into the neighbouring cell. Local OCR returns measured bounding boxes and is
+deterministic to two decimal places. So: OCR measures *where*, the model reads *what*.
+A column spans from its header's left edge to the next header's left edge, because
+headers are left-aligned while values are right-aligned.
+
+**Writing through the UIA Value pattern silently loses data.** `SetValue` updates the
+widget's displayed text but does not fire SWT's `ModifyListener`, so Fakturama's data
+binding never sees it: the Debtor's Company looked correct on screen and saved as
+`NULL`, which then broke the exact-match search on the next run. Real keystrokes fire
+the listener -- with `+`, `^`, `%` and `~` escaped, or `+49 30 5550 1420` is typed as
+`$9 30 5550 1420`.
+
+**The selector dialogs auto-select.** Typing an exact value narrows the list to one row
+and Fakturama commits and closes the dialog immediately -- there is no OK click. The
+spec says "select it and click OK"; the application disagrees. Treating the vanishing
+dialog as a failure and retrying added the line twice.
+
+**Identity is not position.** Fakturama can hold more than one `*New Order` tab, and the
+leftmost was a different, blank Order while the real one held the lines. The Order is
+now identified by reading its `Cust.Ref.` back.
+
+**An anchored selector must still honour its name.** The `Create a follow-up document`
+group holds Confirmation, Invoice, Delivery and Proforma; resolving by index while
+ignoring `name="Invoice"` selected *Confirmation*, which would have created the wrong
+document type -- precisely what 4.6 warns about.
+
+**Open is not in front.** A background tab's widgets are not realized, so 1.8's
+"keep the Order tab open" needs an explicit re-activation before the Order's controls
+can be found at all. Likewise SWT does not create widgets that are not visible: on a
+small window whole sections are absent from the tree, so the shell is maximized first.
 
 ## 6. Halting
 

@@ -669,14 +669,19 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
     # 4.6 -- the follow-up action, NOT the top toolbar Invoice button. Only the
     # follow-up preserves the Order relationship.
     d.click("order.followup_invoice")
-    d.wait_exists("invoice.payment")                                     # 4.7
+    # 4.7 -- the linked Invoice opens in its own editor tab; bring it to the front,
+    # because a background tab's widgets are not realized.
+    d.open_tab("invoice.editor_tab", "invoice.paid")
 
     # 5.1 -- proposed Invoice No., Invoice Date and Service date left unchanged;
     # confirm what was copied down from the Order.
     if _norm(d.read_text("order.custref")) != _norm(o.external_ref):
         raise AmbiguityHalt("invoice.custref", o.external_ref, [d.read_text("order.custref")],
                             d.screenshot("halt-invoice-custref"))
-    _check_total(d, "order.total", o.gross_total, "Total")
+    d.note(f"5.1 ok: Cust.Ref. carried over as {o.external_ref}")
+    _check_total(d, "invoice.total_net", o.net_total, "Invoice Total Net")
+    _check_total(d, "invoice.vat", o.vat_total, "Invoice VAT")
+    _check_total(d, "invoice.total", o.gross_total, "Invoice Total")
 
     if not _try_select(d, "invoice.payment", o.payment_method):          # 5.2
         raise AmbiguityHalt("invoice.payment", o.payment_method, ["not available on the Invoice"],
@@ -684,8 +689,10 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
 
     if o.paid:                                                           # 5.3
         d.click("invoice.paid")
-        d.set_text("invoice.paid_date", o.payment_date.isoformat())
+        time.sleep(1.0)   # ticking 'paid' re-lays out the row; resolve it again after
+        d.set_text("invoice.paid_date", o.payment_date.strftime("%b %d, %Y"))
         d.set_text("invoice.paid_value", f"{o.gross_total:.2f}")
+        d.note(f"5.3 ok: paid, {o.payment_date}, {o.gross_total}")
     else:
         d.note("5.3: not PAID -- leaving paid clear, inventing no date or value")
 
@@ -695,10 +702,44 @@ def stage5_invoice(d: Driver, o: OrderData) -> None:
     d.set_text("list.search", o.external_ref)
     d.wait_stable("address_dlg.list", scope=view)
     rows = _rows(d, "address_dlg.list", view)
-    kinds = {_norm(c) for r in rows for c in r}
-    if not ({"invoice"} & kinds) or not ({"order"} & kinds):
-        raise AmbiguityHalt("invoice.saved", o.external_ref, [str(r) for r in rows[:5]],
+
+    # 5.5 -- BOTH rows must be present: the Invoice in its paid state, and the source
+    # Order still open, each at the same Cust.Ref. and Total. Two matching rows is the
+    # success condition here, not an ambiguity.
+    def _row_with(state: str):
+        for r in rows:
+            cells = [_norm(c) for c in r]
+            if state in cells and any(_norm(o.external_ref) == c for c in cells):
+                return r
+        return None
+
+    inv_row = _row_with("paid" if o.paid else "open")
+    ord_row = None
+    for r in rows:
+        cells = [_norm(c) for c in r]
+        if "open" in cells and any(_norm(o.external_ref) == c for c in cells) and r is not inv_row:
+            ord_row = r
+            break
+
+    if inv_row is None:
+        raise AmbiguityHalt("invoice.saved", o.external_ref,
+                            ["no Invoice row in the expected state"] + [str(r) for r in rows[:4]],
                             d.screenshot("halt-invoice-saved"))
+    if ord_row is None:
+        raise AmbiguityHalt("order.still_open", o.external_ref,
+                            ["source Order not found still open"] + [str(r) for r in rows[:4]],
+                            d.screenshot("halt-order-open"))
+
+    # Ask whether the row SHOWS the expected total, rather than parsing the first
+    # number in it -- a document number like 'INV000001' parses as 0.00 and is not
+    # the Total column.
+    for label, row in (("Invoice", inv_row), ("Order", ord_row)):
+        if not any(_amount(c) == o.gross_total for c in row):
+            raise AmbiguityHalt(f"{label.lower()}.total", label,
+                                [f"{label} row does not show {o.gross_total}: {row}"],
+                                d.screenshot(f"halt-{label.lower()}-total"))
+    d.note(f"5.5 ok: Invoice {'paid' if o.paid else 'open'} at {o.gross_total}, "
+           f"source Order still open at {o.gross_total}")
     d.screenshot("05-invoice-verified")
     # 5.7 -- the flow ends here. No Delivery, Correction or Dunning document.
     d.note("stage 5 ok -- Invoice saved and verified; source Order still open")

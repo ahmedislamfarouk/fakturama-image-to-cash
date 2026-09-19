@@ -14,6 +14,49 @@ Design rationale, grounding strategy and tradeoffs: **[DESIGN.md](DESIGN.md)**.
 
 ---
 
+## Result
+
+A full run from a clean, freshly seeded Fakturama 2.2.0:
+
+```
+stage 1 ok -- Order open, Cust.Ref. WEB-2026-0714-A17, date 2026-07-14
+payment method created: Bank Transfer -> Credit transfer
+Debtor created: Northstar Office GmbH
+VAT created: VAT 19% with S (Standard rate)
+Product created: CHR-ERG-01 @ 297.50 gross
+3.16 ok: CHR-ERG-01 line price 450.00
+Product created: MAT-DESK-02 @ 47.60 gross
+3.16 ok: MAT-DESK-02 line price 120.00
+4.3 ok: Total Net 570.00 / VAT 108.30 / Total 678.30
+stage 4 ok -- Order saved and found in Data > Documents
+5.1 ok: Cust.Ref. carried over; Invoice totals match the Order
+5.3 ok: paid, 2026-07-18, 678.30
+5.5 ok: Invoice paid at 678.30, source Order still open at 678.30
+done -- Order and linked Invoice saved and verified
+```
+
+**Four consecutive runs from a clean database produced this identical result.**
+
+Confirmed in the HSQLDB rather than only on screen -- `FKT_DOCUMENT` holds
+`Order PO000001` and `Invoice INV000001`, both carrying `WEB-2026-0714-A17`.
+Full trace: [`docs/run-log-complete.txt`](docs/run-log-complete.txt).
+
+`Data > Documents` at the end of a run
+([`docs/screenshots/05-documents-verified.png`](docs/screenshots/05-documents-verified.png)):
+
+```
+INV000001   Sep 19, 2026   WEB-2026-0714-A17   paid   $678.30
+PO000001    Jul 14, 2026   WEB-2026-0714-A17   open   $678.30
+```
+
+The Order carries the *extracted* order date (1.5) while the Invoice takes today's
+(5.1), and the source Order remains open beside its paid Invoice (5.5).
+
+**Not done:** the Debtor's address carries no role, so the Order shows no invoice
+address. See *What is not done* below -- it is logged at runtime, not hidden.
+
+---
+
 ## Quick start
 
 ```bash
@@ -195,41 +238,72 @@ Confirmed correct as guessed: `order.custref`, `order.addresses`, `order.items`,
 
 ## What is not done
 
-- **The selector `Name` strings are written from the spec's figures, not from a live UIA
-  dump.** They are the first thing to verify against a running Fakturama, and any
-  mismatch is a one-line edit in `SELECTORS` — that is the point of keeping them as data.
-- Order-level Discount and Shipping are left at their defaults; this image supplies no
-  order-level values (4.2).
-- One locale (English) and one Fakturama version.
-- Single-window assumption: an unanticipated modal blocks a postcondition poll until
-  timeout, then halts. Safe, but not recovered from.
-- Multi-page and rotated source images are out of scope.
+**The Debtor's address has no role, so the Order shows no invoice address.** Fakturama
+stores the role in a join table, `FKT_ADDRESS_CONTACTTYPES`, populated from the
+`address type` control on Addresses > Main address. That control is a custom SWT
+multi-select whose popup is not exposed to UI Automation at all, and it does not
+respond to synthetic activation: clicking the field, clicking its expander triangle,
+Alt+Down, and typing the role followed by Enter were all tried. Typing leaves the text
+visible in the field, but saving writes no row to the join table -- verified directly
+against the HSQLDB log, not inferred from the screen. The run logs this gap rather
+than halting, because stopping there would block a flow that is otherwise complete.
 
----
+**No second Debtor address.** 2.8 implies one when billing and delivery differ, which
+they do in the supplied image (Friedrichstrasse 88 / 10117 vs Beusselstrasse 44 /
+10553). Only the Main address is created, so the delivery address is not represented.
 
-## Written question — if I had 3 more hours
+**Reuse paths are under-exercised.** Runs start from a clean database, so the
+create-because-missing branches are well covered and the reuse-an-existing-record
+branches much less so. The VAT reuse path is the exception and does run.
 
-**1. Replace the guessed selector names with a live UIA dump (≈60 min).** The single
-biggest risk in this repo is that the `Name` strings come from screenshots rather than
-from `inspect.exe`. I would walk each editor and dialog, dump the real tree, and correct
-the registry. Everything else is already built to absorb that as a data change.
+**A pre-existing VAT's code cannot be checked.** 3.5 requires `VAT code (E-Invoice) = S`,
+but the VATs list has no VAT-code column. A VAT this run created is known to be S; for
+one that already existed the code is unverifiable from the list, so it is reported as
+unverified and the caller halts rather than reusing a VAT that might be Z, E or AE.
 
-**2. Close the string-validation hole (≈30 min).** The arithmetic gate proves the numbers
-but is blind to strings — `CHR-ERG-O1` with a letter O satisfies every identity and would
-create a junk Product. A second extraction pass at temperature 0 over the string fields
-only, halting on any byte-level disagreement, is a hard signal for one extra call. I
-prefer this to a confidence-weighted ensemble: self-reported LLM confidence is
-uncalibrated, so weighting dresses a guess up as a number, while a diff either matches or
-does not.
+**One locale, one version.** English, Fakturama 2.2.0. Both are selector-registry data.
 
-**3. A recorded end-to-end run against a seeded and an empty database (≈45 min).** Both
-branches matter — the existing-Debtor path and the creation path — and the repo currently
-demonstrates the creation path only.
+**Resetting Fakturama means reinstalling it.** Its state lives in
+`%USERPROFILE%\.fakturama2`, not the workspace: deleting the workspace, or even
+reinstalling the MSI, leaves the "already initialised" flag behind, and Fakturama then
+skips seeding its default Shipping/VAT/payment. It refuses to open a New Order with
+"No default value found for Shippings", which points nowhere near the cause.
 
-**4. Make the halt artefacts self-contained (≈30 min).** Today a halt writes a screenshot
-and an exception. It should write a small folder: the screenshot, the candidate rows, the
-extracted values in play, and the step number, so a human can resolve it without
-re-running anything.
+**Currency.** A fresh install renders amounts with `$` while the source document is EUR.
+The checks compare numbers, so this does not affect correctness, but a production run
+should set the workspace currency to match.
 
-**5. Idempotency test (≈15 min).** Run twice against the same database and assert the
-second run creates no duplicate master data and produces exactly one new Order.
+## Written question -- if I had 3 more hours
+
+**1. Drive the address-role widget (~60 min).** The one control I could not reach, and
+the only functional gap left. Next attempts, in order: OS-level `SendInput` rather than
+UIA-synthesised clicks, since the popup may only respond to real input; then
+Fakturama's own import path, which writes `FKT_ADDRESS_CONTACTTYPES` directly. Closing
+this makes the Order show its invoice address and lets 2.4 be enforced instead of
+reported.
+
+**2. Exercise the reuse branches (~45 min).** Every run so far starts from a clean
+database, so *create-because-missing* is well tested and *reuse-an-existing-record* is
+barely tested. I would run five times from clean, then five against a populated
+database, and assert the second set creates no duplicate master data and produces
+exactly one new Order each time. That is also the real test of the idempotency claim.
+
+**3. The second delivery address (~30 min).** 2.8 implies a second Debtor address when
+billing and delivery differ. Currently only the Main address is created.
+
+**4. Close the string-validation hole (~30 min).** The arithmetic gate proves the
+numbers but is blind to strings: `CHR-ERG-O1` with a letter O satisfies every identity
+and would create a junk Product. A second extraction pass over the string fields only,
+halting on any byte-level disagreement, is a hard signal for one extra call. I prefer
+this to a confidence-weighted ensemble -- self-reported model confidence is
+uncalibrated, so weighting dresses a guess up as a number, while a diff either matches
+or does not.
+
+**5. Make halts self-contained (~15 min).** A halt currently writes a screenshot and
+raises. It should write a folder: the screenshot, the candidate rows, the extracted
+values in play, and the step number, so a human can resolve it without re-running
+anything.
+
+What I would *not* spend the time on: more selectors. The registry is data, and the
+four-tier resolution has now survived every shape Fakturama presents. The remaining
+risk is in the paths that have not run often enough, not in the ones that have.
