@@ -66,13 +66,15 @@ class Selector:
 # is real. Names below are the English strings Fakturama renders.
 SELECTORS: dict[str, Selector] = {
     # --- stage 1: the Order editor -----------------------------------------
-    "toolbar.order":        Selector("Button", name="Order", describe="the 'Order' button in the top toolbar"),
+    "toolbar.order":        Selector("Button", name="Create: New Order",
+                                     describe="the 'Create: New Order' button in the top toolbar"),
     "order.no":             Selector("Edit", name="No."),
     "order.date":           Selector("Edit", name="Date"),
     "order.custref":        Selector("Edit", name="Cust.Ref."),
     "order.pricemode_net":  Selector("RadioButton", name="Net"),
     "order.vat_with":       Selector("ComboBox", name="With VAT"),
-    "order.save":           Selector("Button", name="Save", describe="the toolbar Save control"),
+    "order.save":           Selector("Button", name="Save the current contents",
+                                     describe="the toolbar Save control"),
 
     # --- stage 2: Debtor ----------------------------------------------------
     # Two icons sit beside 'Addresses'. The upper opens the existing-contact picker;
@@ -80,21 +82,26 @@ SELECTORS: dict[str, Selector] = {
     # They share a control type and carry no AutomationId, so they are resolved by
     # position under the 'Addresses' anchor, then confirmed by tooltip.
     "order.addresses":      Selector("Text", name="Addresses"),
-    "address_picker.open":  Selector("Button", anchor="order.addresses", index=0,
-                                     discriminator="select",
+    # VERIFIED against Fakturama 2.2.0: these are unnamed *Image* controls sharing a
+    # Pane with the 'Addresses' Text. No Name, no usable AutomationId (numeric handles
+    # only) -- tree order under the anchor is the ONLY reliable handle, and it matches
+    # vertical order: index 0 sits at y=299, index 1 at y=327.
+    "address_picker.open":  Selector("Image", anchor="order.addresses", index=0,
                                      describe="the UPPER icon beside 'Addresses' that opens the "
                                               "existing-contact picker -- NOT the lower green + icon"),
-    "address_picker.new":   Selector("Button", anchor="order.addresses", index=1,
-                                     discriminator="new",
+    "address_picker.new":   Selector("Image", anchor="order.addresses", index=1,
                                      describe="the LOWER green + icon beside 'Addresses'"),
-    "address_dlg.search":   Selector("Edit", name="Search"),
-    "address_dlg.list":     Selector("DataGrid"),
+    # VERIFIED: the dialog's search box is an UNNAMED Edit beside a 'Search:' Text.
+    "address_dlg.searchlbl": Selector("Text", name="Search:"),
+    "address_dlg.search":   Selector("Edit", anchor="address_dlg.searchlbl", index=0),
+    "address_dlg.list":     Selector("Table"),
     "address_dlg.ok":       Selector("Button", name="OK"),
     "address_dlg.cancel":   Selector("Button", name="Cancel"),
     "order.invoice_addr":   Selector("Edit", name="Invoice address"),
     "order.delivery_addr":  Selector("Edit", name="Delivery address"),
 
-    "new.contact":          Selector("Button", name="New Contact", describe="'New Contact' in the left New panel"),
+    "new.contact":          Selector("SplitButton", name="Create a new contact",
+                                     describe="'Create a new contact' in the toolbar / left New panel"),
     "debtor.company":       Selector("Edit", name="Company"),
     "debtor.firstname":     Selector("Edit", name="First Name"),
     "debtor.lastname":      Selector("Edit", name="Name"),
@@ -118,10 +125,10 @@ SELECTORS: dict[str, Selector] = {
     # --- stage 2.10: payment terms -----------------------------------------
     "menu.data":            Selector("MenuItem", name="Data"),
     "menu.payments":        Selector("MenuItem", name="terms of payment"),
-    "list.add":             Selector("Button", anchor="list.toolbar", index=0, discriminator="new",
+    "list.add":             Selector("Image", anchor="list.toolbar", index=0,
                                      describe="the green + control at the upper-right of the list"),
     "list.toolbar":         Selector("ToolBar"),
-    "list.search":          Selector("Edit", name="Search"),
+    "list.search":          Selector("Edit", anchor="address_dlg.searchlbl", index=0),
     "payment.name":         Selector("Edit", name="Name"),
     "payment.description":  Selector("Edit", name="Description"),
     "payment.code":         Selector("ComboBox", name="payment code"),
@@ -137,13 +144,13 @@ SELECTORS: dict[str, Selector] = {
     "vat.value":            Selector("Edit", name="Value"),
 
     "order.items":          Selector("Text", name="Items"),
-    "product_picker.open":  Selector("Button", anchor="order.items", index=0, discriminator="select",
+    "product_picker.open":  Selector("Image", anchor="order.items", index=0,
                                      describe="the UPPER Product-selection icon beside the Items "
                                               "table -- NOT the green + control"),
-    "product_dlg.search":   Selector("Edit", name="Search"),
+    "product_dlg.search":   Selector("Edit", anchor="address_dlg.searchlbl", index=0),
     "product_dlg.ok":       Selector("Button", name="OK"),
     "product_dlg.cancel":   Selector("Button", name="Cancel"),
-    "new.product":          Selector("Button", name="New product"),
+    "new.product":          Selector("Button", name="Create a new product"),
     "product.itemno":       Selector("Edit", name="Item Number"),
     "product.name":         Selector("Edit", name="Name"),
     "product.description":  Selector("Edit", name="Description"),
@@ -160,7 +167,7 @@ SELECTORS: dict[str, Selector] = {
     "order.line_price":     Selector("Edit", name="Price"),
 
     # --- order totals (4.3) -------------------------------------------------
-    "order.total_net":      Selector("Edit", name="Total Net"),
+    "order.total_net":      Selector("Edit", name="Total Gross"),   # label depends on price mode
     "order.total_vat":      Selector("Edit", name="VAT"),
     "order.total":          Selector("Edit", name="Total"),
 
@@ -170,7 +177,7 @@ SELECTORS: dict[str, Selector] = {
                                       anchor="order.followup", index=0,
                                       describe="'Invoice' inside the saved Order's 'Create a "
                                                "follow-up document' area -- NOT the top toolbar Invoice"),
-    "order.followup":       Selector("Text", name="Create a follow-up document"),
+    "order.followup":       Selector("Group", name="Create a follow-up document"),
     "invoice.payment":      Selector("ComboBox", name="Payment"),
     "invoice.paid":         Selector("CheckBox", name="paid"),
     "invoice.paid_date":    Selector("Edit", name="payment date"),
@@ -189,6 +196,7 @@ class Driver:
     vision_tiebreak: bool = True
     app: object | None = None
     _scope: object | None = None
+    _main: object | None = None   # the Fakturama shell; dialogs are its children
     _log: list[str] = field(default_factory=list)
 
     # -- lifecycle ----------------------------------------------------------
@@ -217,11 +225,33 @@ class Driver:
 
         Scoping is what makes 'Save' mean THIS Order's Save, and what keeps the
         still-open Order tab from colliding with the Debtor editor opened on top.
+
+        Fakturama renders its dialogs ('Select the address', 'Select a product') as
+        CHILD Windows inside the main shell, not as top-level windows -- verified
+        against 2.2.0. So look inside the main window first and only fall back to
+        top-level. Searching top-level alone silently finds nothing.
         """
-        self._scope = self.app.window(title_re=title_re)
-        self._scope.wait("visible ready", timeout=self.timeout)
-        self.note(f"scope -> {title_re}")
-        return self._scope
+        import re as _re
+        pat = _re.compile(title_re)
+
+        main = self._main or self._scope
+        if main is not None:
+            try:
+                for c in main.descendants(control_type="Window"):
+                    if pat.search(c.element_info.name or ""):
+                        self._scope = c
+                        self.note(f"scope -> child window {c.element_info.name!r}")
+                        return c
+            except Exception:
+                pass
+
+        spec = self.app.window(title_re=title_re)
+        spec.wait("visible ready", timeout=self.timeout)
+        self._scope = spec
+        if self._main is None:
+            self._main = spec
+        self.note(f"scope -> top-level {title_re}")
+        return spec
 
     # -- resolution ---------------------------------------------------------
 
@@ -307,8 +337,20 @@ class Driver:
     # -- actions ------------------------------------------------------------
 
     def click(self, logical: str, scope=None):
+        """SWT ignores synthetic clicks on an unfocused dialog -- focus first.
+
+        Found the hard way on Fakturama's initialization dialog: click_input() on the
+        OK button did nothing until set_focus() was called on its parent window.
+        """
         el = self.find(logical, scope)
-        el.click_input()
+        try:
+            el.set_focus()
+        except Exception:
+            pass
+        try:
+            el.click_input()
+        except Exception:
+            el.invoke()          # fall back to the UIA Invoke pattern
         self.note(f"click {logical}")
         return el
 

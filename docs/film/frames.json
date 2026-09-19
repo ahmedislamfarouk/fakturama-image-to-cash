@@ -1,0 +1,397 @@
+[
+ {
+  "n": 1,
+  "file": "001-click-toolbar.order.png",
+  "label": "click-toolbar.order",
+  "rect": [
+   174,
+   52,
+   215,
+   106
+  ],
+  "t": 32.0
+ },
+ {
+  "n": 2,
+  "file": "002-click-address_picker.open.png",
+  "label": "click-address_picker.open",
+  "rect": [
+   557,
+   267,
+   577,
+   287
+  ],
+  "t": 45.6
+ },
+ {
+  "n": 3,
+  "file": "003-click-address_dlg.cancel.png",
+  "label": "click-address_dlg.cancel",
+  "rect": null,
+  "t": 56.8
+ },
+ {
+  "n": 4,
+  "file": "004-click-menu.payments.png",
+  "label": "click-menu.payments",
+  "rect": [
+   11,
+   342,
+   132,
+   364
+  ],
+  "t": 57.9
+ },
+ {
+  "n": 5,
+  "file": "005-click-payment.add.png",
+  "label": "click-payment.add",
+  "rect": [
+   2462,
+   939,
+   2485,
+   961
+  ],
+  "t": 66.9
+ },
+ {
+  "n": 6,
+  "file": "006-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 73.5
+ },
+ {
+  "n": 7,
+  "file": "007-click-new.contact.png",
+  "label": "click-new.contact",
+  "rect": [
+   385,
+   48,
+   459,
+   110
+  ],
+  "t": 76.7
+ },
+ {
+  "n": 8,
+  "file": "008-click-debtor.tab_addresses.png",
+  "label": "click-debtor.tab_addresses",
+  "rect": [
+   528,
+   304,
+   611,
+   323
+  ],
+  "t": 83.2
+ },
+ {
+  "n": 9,
+  "file": "009-click-debtor.add_address.png",
+  "label": "click-debtor.add_address",
+  "rect": [
+   2515,
+   490,
+   2535,
+   515
+  ],
+  "t": 100.3
+ },
+ {
+  "n": 10,
+  "file": "010-click-debtor.tab_misc.png",
+  "label": "click-debtor.tab_misc",
+  "rect": [
+   589,
+   304,
+   694,
+   323
+  ],
+  "t": 117.0
+ },
+ {
+  "n": 11,
+  "file": "011-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 124.6
+ },
+ {
+  "n": 12,
+  "file": "012-click-address_picker.open.png",
+  "label": "click-address_picker.open",
+  "rect": [
+   557,
+   267,
+   577,
+   287
+  ],
+  "t": 127.8
+ },
+ {
+  "n": 13,
+  "file": "013-click-address_dlg.ok.png",
+  "label": "click-address_dlg.ok",
+  "rect": null,
+  "t": 138.7
+ },
+ {
+  "n": 14,
+  "file": "014-click-product_picker.open.png",
+  "label": "click-product_picker.open",
+  "rect": [
+   527,
+   355,
+   547,
+   375
+  ],
+  "t": 142.6
+ },
+ {
+  "n": 15,
+  "file": "015-click-product_dlg.cancel.png",
+  "label": "click-product_dlg.cancel",
+  "rect": null,
+  "t": 154.0
+ },
+ {
+  "n": 16,
+  "file": "016-click-menu.vats.png",
+  "label": "click-menu.vats",
+  "rect": [
+   11,
+   396,
+   62,
+   418
+  ],
+  "t": 155.1
+ },
+ {
+  "n": 17,
+  "file": "017-click-vat.add.png",
+  "label": "click-vat.add",
+  "rect": [
+   2462,
+   939,
+   2485,
+   961
+  ],
+  "t": 163.8
+ },
+ {
+  "n": 18,
+  "file": "018-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 168.9
+ },
+ {
+  "n": 19,
+  "file": "019-click-new.product.png",
+  "label": "click-new.product",
+  "rect": [
+   11,
+   579,
+   107,
+   601
+  ],
+  "t": 169.7
+ },
+ {
+  "n": 20,
+  "file": "020-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 179.5
+ },
+ {
+  "n": 21,
+  "file": "021-click-product_picker.open.png",
+  "label": "click-product_picker.open",
+  "rect": [
+   527,
+   355,
+   547,
+   375
+  ],
+  "t": 185.0
+ },
+ {
+  "n": 22,
+  "file": "022-click-product_dlg.ok.png",
+  "label": "click-product_dlg.ok",
+  "rect": null,
+  "t": 197.5
+ },
+ {
+  "n": 23,
+  "file": "023-click-product_picker.open.png",
+  "label": "click-product_picker.open",
+  "rect": [
+   527,
+   355,
+   547,
+   375
+  ],
+  "t": 215.9
+ },
+ {
+  "n": 24,
+  "file": "024-click-product_dlg.cancel.png",
+  "label": "click-product_dlg.cancel",
+  "rect": null,
+  "t": 225.5
+ },
+ {
+  "n": 25,
+  "file": "025-click-menu.vats.png",
+  "label": "click-menu.vats",
+  "rect": [
+   11,
+   396,
+   62,
+   418
+  ],
+  "t": 226.5
+ },
+ {
+  "n": 26,
+  "file": "026-click-new.product.png",
+  "label": "click-new.product",
+  "rect": [
+   11,
+   579,
+   107,
+   601
+  ],
+  "t": 235.2
+ },
+ {
+  "n": 27,
+  "file": "027-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 244.2
+ },
+ {
+  "n": 28,
+  "file": "028-click-product_picker.open.png",
+  "label": "click-product_picker.open",
+  "rect": [
+   527,
+   355,
+   547,
+   375
+  ],
+  "t": 249.6
+ },
+ {
+  "n": 29,
+  "file": "029-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 276.5
+ },
+ {
+  "n": 30,
+  "file": "030-click-menu.documents.png",
+  "label": "click-menu.documents",
+  "rect": [
+   11,
+   234,
+   99,
+   256
+  ],
+  "t": 278.1
+ },
+ {
+  "n": 31,
+  "file": "031-click-order.followup_invoice.png",
+  "label": "click-order.followup_invoice",
+  "rect": [
+   2003,
+   258,
+   2052,
+   312
+  ],
+  "t": 289.6
+ },
+ {
+  "n": 32,
+  "file": "032-click-invoice.editor_tab.png",
+  "label": "click-invoice.editor_tab",
+  "rect": [
+   1359,
+   115,
+   1504,
+   138
+  ],
+  "t": 290.8
+ },
+ {
+  "n": 33,
+  "file": "033-click-invoice.paid.png",
+  "label": "click-invoice.paid",
+  "rect": [
+   518,
+   765,
+   562,
+   781
+  ],
+  "t": 298.3
+ },
+ {
+  "n": 34,
+  "file": "034-click-order.save.png",
+  "label": "click-order.save",
+  "rect": [
+   120,
+   52,
+   159,
+   106
+  ],
+  "t": 305.8
+ },
+ {
+  "n": 35,
+  "file": "035-click-menu.documents.png",
+  "label": "click-menu.documents",
+  "rect": [
+   11,
+   234,
+   99,
+   256
+  ],
+  "t": 306.8
+ }
+]

@@ -1,0 +1,80 @@
+{
+  "source_image": "input/order.png",
+  "checks": {
+    "arithmetic": "pass",
+    "failures": [],
+    "identities": {
+      "net_total == sum(line_net)": "570.00 == 570.00",
+      "vat_total == sum(line_net * vat%)": "108.30",
+      "gross == net + vat": "570.00 + 108.30 == 678.30"
+    }
+  },
+  "order": {
+    "external_ref": "WEB-2026-0714-A17",
+    "order_date": "2026-07-14",
+    "currency": "EUR",
+    "payment_method": "Bank Transfer",
+    "paid": true,
+    "payment_date": "2026-07-18"
+  },
+  "debtor": {
+    "company": "Northstar Office GmbH",
+    "contact": "Marta Klein",
+    "alias": "NORTHSTAR-BERLIN",
+    "email": "marta.klein@example.test",
+    "phone": "+49 30 5550 1420",
+    "billing": {
+      "name": "Northstar Office GmbH",
+      "street": "Friedrichstrasse 88",
+      "zip": "10117",
+      "city": "Berlin",
+      "country": "Germany",
+      "extra": ""
+    },
+    "delivery": {
+      "name": "Northstar Office Warehouse",
+      "street": "Beusselstrasse 44",
+      "zip": "10553",
+      "city": "Berlin",
+      "country": "Germany",
+      "extra": ""
+    },
+    "delivery_same_as_billing": false,
+    "step_2_8": "billing and delivery differ -- a SECOND address carries the Delivery role"
+  },
+  "lines": [
+    {
+      "sku": "CHR-ERG-01",
+      "description": "Ergonomic Desk Chair",
+      "qty": 2,
+      "unit_net": "250.00",
+      "discount_pct": "10",
+      "vat_pct": "19",
+      "line_net_from_image": "450.00",
+      "line_net_recomputed": "450.00",
+      "line_net_agrees": true,
+      "product_master_gross": "297.50",
+      "product_master_gross_note": "250.00 x (1 + 19/100) -- the LINE discount is NOT applied (3.9)",
+      "vat_record_name": "VAT 19%"
+    },
+    {
+      "sku": "MAT-DESK-02",
+      "description": "Anti-Fatigue Desk Mat",
+      "qty": 3,
+      "unit_net": "40.00",
+      "discount_pct": "0",
+      "vat_pct": "19",
+      "line_net_from_image": "120.00",
+      "line_net_recomputed": "120.00",
+      "line_net_agrees": true,
+      "product_master_gross": "47.60",
+      "product_master_gross_note": "40.00 x (1 + 19/100) -- the LINE discount is NOT applied (3.9)",
+      "vat_record_name": "VAT 19%"
+    }
+  ],
+  "totals": {
+    "net": "570.00",
+    "vat": "108.30",
+    "gross": "678.30"
+  }
+}
