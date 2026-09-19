@@ -107,8 +107,22 @@ def main() -> None:
     )
     html = f"<!doctype html><meta charset='utf-8'><body>{html_body}</body>"
 
+    css = CSS_TEXT
+    if "BRIEF" in SRC.stem.upper():
+        # A one-pager is a different document, not a shrunken one: it loses the
+        # rules and the generous section spacing that help a four-page read.
+        css += """
+        @page { margin: 13mm 14mm 11mm 14mm; }
+        html { font-size: 9.0pt; }
+        h2 { font-size: 10.6pt; margin: 3.6mm 0 1.4mm; border-bottom: none; }
+        p { margin: 0 0 1.7mm; }
+        table { margin: 1.6mm 0 2.4mm; }
+        td, th { padding: 0.85mm 2.2mm 0.85mm 0; }
+        ul { margin: 1.4mm 0; padding-left: 4mm; }
+        li { margin: 0 0 1mm; }
+        """
     HTML(string=html, base_url=str(SRC.parent.resolve())).write_pdf(
-        DST, stylesheets=[CSS(string=CSS_TEXT)]
+        DST, stylesheets=[CSS(string=css)]
     )
 
     size = DST.stat().st_size / 1024

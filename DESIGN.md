@@ -1,6 +1,6 @@
 # Fakturama Image-to-Cash — Design Document
 
-**Ahmed Islam Farouk Abbas** · TJM Labs take-home, Part 1
+**Ahmed Islam Farouk Abbas** · TJM Labs take-home, Part 1 · one-page version: `DESIGN-BRIEF.md`
 
 ---
 

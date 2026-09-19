@@ -14,7 +14,7 @@ landed with the spec step it belongs to. Also as
 
 | Asked for | Here |
 |---|---|
-| **Part 1 — design doc**, 1–4 pages, no code | **[DESIGN.pdf](DESIGN.pdf)** — 4 pages. Source: [DESIGN.md](DESIGN.md) |
+| **Part 1 — design doc**, 1–4 pages, no code | **[DESIGN-BRIEF.pdf](DESIGN-BRIEF.pdf)** — 1 page, the whole argument · **[DESIGN.pdf](DESIGN.pdf)** — 4 pages, the full version<br>Markdown: [DESIGN-BRIEF.md](DESIGN-BRIEF.md) · [DESIGN.md](DESIGN.md) |
 | **Source code with a clear structure in a Git repo** | [Where everything is](#where-everything-is) — `src/` (6 modules), `tests/`, `tools/`, `input/`, `docs/` |
 | **Setup instructions: dependencies and how to run** | **[Setup](#setup-dependencies-and-how-to-run)** — 4 steps. Dependencies are `pywinauto`, `Pillow`, `rapidocr-onnxruntime` in [requirements.txt](requirements.txt). [Commands](#commands) has the commands and flags. |
 | **Annotated screenshots or a short recording** | **both** — [10 annotated screenshots](docs/screenshots/), [35 annotated frames](docs/film/), and a [22-second clip with every click marked](docs/recording.mp4) |
@@ -44,7 +44,8 @@ No hardcoded screen coordinates. Nothing assumed about window size, theme or DPI
 ```
 fakturama-image-to-cash/
 ├── README.md              you are here — setup, results, limitations, written answer
-├── DESIGN.md              Part 1 deliverable, ~3 pages
+├── DESIGN-BRIEF.md / .pdf  Part 1, one page
+├── DESIGN.md / .pdf        Part 1, full version, four pages
 ├── requirements.txt       3 packages, all Windows-only markers
 ├── .env.example           the provider chain, with placeholders
 │
