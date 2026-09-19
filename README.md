@@ -53,6 +53,7 @@ Confirmed in the HSQLDB rather than only on screen -- `FKT_DOCUMENT` holds
 | the run as 35 annotated frames | [`docs/film/`](docs/film/) |
 | the same run as a 56-second clip | [`docs/recording.mp4`](docs/recording.mp4) |
 | which reader reads the grids, measured | [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
+| where the 316 seconds go, measured | [`docs/TIMING.md`](docs/TIMING.md) |
 | what the application turned out to be | [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 
 `Data > Documents` at the end of a run

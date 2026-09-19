@@ -86,7 +86,11 @@ python -m src.run input/order.png --record
 python3 tools/video.py
 ```
 
-The raw capture frames are not committed (260 of them, 27MB). The clip is.
+`docs/recording-realtime.mp4` is the same frames at 1x -- 260 seconds, pauses left in --
+for working out where the time goes rather than for showing the flow. The breakdown is
+in [`../TIMING.md`](../TIMING.md).
+
+The raw capture frames are not committed (260 of them, 27MB). Both clips are.
 
 ```
 python -m src.run input/order.png --film   # frames + frames.json

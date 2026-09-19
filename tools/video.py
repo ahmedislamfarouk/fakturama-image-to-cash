@@ -27,6 +27,7 @@ from PIL import Image, ImageDraw, ImageFont
 REC = Path("docs/record")
 FILM = Path("docs/film")
 OUT = Path("docs/recording.mp4")
+OUT_REALTIME = Path("docs/recording-realtime.mp4")
 
 FPS = 12                 # playback rate; source is 1 fps, so this is 12x speed
 HOLD = 2.0               # seconds a click marker stays visible, in source time
@@ -125,17 +126,22 @@ def main() -> None:
             t = float(m.group(1)) if m else float(i)
             draw(f, t, cs, scale, total, speed).save(tmpd / f"{i:05d}.png")
 
-        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS),
-               "-i", str(tmpd / "%05d.png"),
-               "-vf", "scale=1600:-2:flags=lanczos,format=yuv420p",
-               "-c:v", "libx264", "-preset", "slow", "-crf", "27",
-               "-movflags", "+faststart", str(OUT)]
-        subprocess.run(cmd, check=True)
-
-    secs = len(frames) / FPS
-    print(f"{OUT}  {len(frames)} frames, {secs:.0f}s at {FPS}fps "
-          f"({len(frames)}s of real time), {OUT.stat().st_size/1048576:.1f}MB, "
-          f"{len(cs)} clicks marked")
+        # Two cuts of the same frames. The fast one is for showing someone what
+        # the automation does; the real-time one is for working out where the
+        # five minutes actually go, which is a different job and needs the
+        # pauses left in.
+        for dst, fps in ((OUT, FPS), (OUT_REALTIME, 1)):
+            cmd = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps),
+                   "-i", str(tmpd / "%05d.png"),
+                   "-vf", "scale=1600:-2:flags=lanczos,format=yuv420p",
+                   "-c:v", "libx264", "-preset", "slow", "-crf", "27",
+                   "-movflags", "+faststart", str(dst)]
+            subprocess.run(cmd, check=True)
+            secs = len(frames) / fps
+            print(f"{dst}  {len(frames)} frames at {fps}fps -> {secs:.0f}s "
+                  f"({total:.0f}s real, {total/secs:.0f}x), "
+                  f"{dst.stat().st_size/1048576:.1f}MB")
+    print(f"{len(cs)} clicks marked")
 
 
 if __name__ == "__main__":
