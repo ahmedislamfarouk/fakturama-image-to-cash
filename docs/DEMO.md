@@ -4,6 +4,8 @@ Everything a person types, in order. Nothing here changes the code.
 
 **Budget 15 minutes**: ~4 to set up, ~6 for the run, the rest for questions.
 
+> Verified end to end on 2026-09-23 by following exactly these steps: `exit 0` in 354 seconds.
+
 ---
 
 ## Before they join
@@ -54,7 +56,7 @@ cd C:\Users\ahmed\fakturama-image-to-cash
 python -m src.run input\order.png
 ```
 
-That is the whole demo. It takes about **five and a half minutes** and prints a running
+That is the whole demo. It takes about **six minutes** and prints a running
 commentary with elapsed seconds, then this:
 
 ```
