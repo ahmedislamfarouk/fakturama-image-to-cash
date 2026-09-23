@@ -90,6 +90,8 @@ fakturama-image-to-cash/
 | [docs/BENCHMARK.md](docs/BENCHMARK.md) | which reader should read the grids, measured rather than asserted |
 | [docs/TIMING.md](docs/TIMING.md) | where a run's 316 seconds go, and one optimisation tried and reverted |
 | [docs/recording-realtime.mp4](docs/recording-realtime.mp4) | the same run at 1×, for watching rather than skimming |
+| [docs/DEMO.md](docs/DEMO.md) | how to run it live, step by step, and what to do when it goes wrong |
+| [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) | everything I know to be wrong or incomplete, by severity |
 
 ---
 
